@@ -4,3 +4,4 @@ venv
 .idea
 Lib
 Scripts/
+db.sqlite3

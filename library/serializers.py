@@ -3,10 +3,19 @@ from library.models import Book, Borrowing
 
 
 class BookSerializer(serializers.ModelSerializer):
-
+    def validate(self, attrs):
+        data = super(BookSerializer, self).validate(attrs)
+        if attrs["inventory"] < 0:
+            raise serializers.ValidationError(
+                "Input positive numeric or 0"
+            )
+        return data
     class Meta:
         model = Book
-        fields = ("id", "title", "author", "daily_fee", "inventory")
+        fields = ("id", "title", "cover", "author", "daily_fee", "inventory")
+
+
+
 
 class BorrowingSerializer(serializers.ModelSerializer):
 
