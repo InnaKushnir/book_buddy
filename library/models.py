@@ -13,16 +13,20 @@ class Book(models.Model):
     daily_fee = models.DecimalField(max_digits=6, decimal_places=3)
 
     def __str__(self):
-        return self.title
+        return str(self.title)
 
 
 class Borrowing(models.Model):
     borrow_date = models.DateField()
     expected_return_date = models.DateField(auto_now=False)
-    actual_return_date = models.DateField(auto_now=False)
+    actual_return_date = models.DateField(auto_now=False, null=True, blank=True)
     book_id = models.ForeignKey(
         Book, on_delete=models.CASCADE, related_name="borrowings"
     )
+
+    @property
+    def book(self):
+        return self.book_id
 
 
 class Payment(models.Model):
