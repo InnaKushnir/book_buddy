@@ -5,10 +5,8 @@ from library.models import Book, Borrowing
 class BookSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         data = super(BookSerializer, self).validate(attrs)
-        if attrs["inventory"] < 0:
-            raise serializers.ValidationError(
-                "Input positive numeric or 0"
-            )
+        Book.validate(attrs["inventory"], serializers.ValidationError)
+
         return data
     class Meta:
         model = Book

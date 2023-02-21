@@ -1,5 +1,5 @@
 from django.db import models
-
+from django.conf import settings
 
 class Book(models.Model):
     class CoverChoices(models.TextChoices):
@@ -12,6 +12,17 @@ class Book(models.Model):
     inventory = models.PositiveIntegerField()
     daily_fee = models.DecimalField(max_digits=6, decimal_places=3)
 
+
+    @staticmethod
+    def validate(inventory: int, error_to_raise):
+        if inventory < 0:
+            raise error_to_raise(
+                "Input positive numeric "
+            )
+
+    def clean(self):
+        Book.validate(self.inventory, ValidationError)
+
     def __str__(self):
         return str(self.title)
 
@@ -22,6 +33,9 @@ class Borrowing(models.Model):
     actual_return_date = models.DateField(auto_now=False, null=True, blank=True)
     book_id = models.ForeignKey(
         Book, on_delete=models.CASCADE, related_name="borrowings"
+    )
+    user_id = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE
     )
 
     @property
