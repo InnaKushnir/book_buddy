@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.contrib.auth import get_user_model
 from library.models import Book, Borrowing
 from . serializers import (
@@ -45,5 +45,24 @@ class BorrowingViewSet(
         return Borrowing.objects.filter(user=self.request.user)
 
 
+
+
     def perform_create(self, serializer):
+
         serializer.save(user=self.request.user)
+
+
+        borrowing = get_object_or_404(Borrowing, pk=2)
+        borrowing.book_id.inventory -= 1
+        serializer.is_valid(raise_exception=True)
+        borrowing = serializer.save()
+        print(borrowing.book_id.inventory)
+        borrowing.book_id.inventory -= 1
+        borrowing = serializer.save()
+        print(borrowing.book_id.inventory, borrowing.book_id )
+
+
+
+
+
+
