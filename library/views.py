@@ -47,20 +47,14 @@ class BorrowingViewSet(
 
 
 
-    def perform_create(self, serializer):
+    def perform_create(self, serializer, **kwargs):
 
         serializer.save(user=self.request.user)
 
-
-        borrowing = get_object_or_404(Borrowing, pk=2)
-        borrowing.book_id.inventory -= 1
-        serializer.is_valid(raise_exception=True)
-        borrowing = serializer.save()
-        print(borrowing.book_id.inventory)
-        borrowing.book_id.inventory -= 1
-        borrowing = serializer.save()
-        print(borrowing.book_id.inventory, borrowing.book_id )
-
+        book_id = self.request.data["book_id"]
+        book = get_object_or_404(Book, pk=book_id)
+        book.inventory -= 1
+        book.save()
 
 
 
