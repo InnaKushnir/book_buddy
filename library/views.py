@@ -42,8 +42,8 @@ class BorrowingViewSet(
         return BorrowingSerializer
 
     def get_queryset(self):
-        return Borrowing.objects.filter(user=self.request.user)
 
+        return Borrowing.objects.filter(user=self.request.user)
 
 
 
@@ -55,8 +55,3 @@ class BorrowingViewSet(
         book = get_object_or_404(Book, pk=book_id)
         book.inventory -= 1
         book.save()
-
-
-
-
-

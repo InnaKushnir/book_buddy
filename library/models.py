@@ -42,10 +42,6 @@ class Borrowing(models.Model):
     )
 
 
-
-
-
-
     def clean(self):
         borrow_date = datetime.date.today()
         borrow_date = borrow_date.strftime('%Y-%m-%d')

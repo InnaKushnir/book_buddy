@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from library.models import Book, Borrowing
+from django.shortcuts import get_object_or_404
 
 import datetime
 
@@ -24,12 +25,12 @@ class BorrowingSerializer(serializers.ModelSerializer):
 
 
 class BorrowingListSerializer(BorrowingSerializer):
-    book_= BookSerializer(many=False)
+    book= BookSerializer(many=False)
 
     class Meta:
         model = Borrowing
-        fields = ("id", "borrow_date","expected_return_date","actual_return_date", "book_")
-        read_only_fields = ("book_",)
+        fields = ("id", "borrow_date","expected_return_date","actual_return_date", "book")
+        read_only_fields = ("book",)
 
 class BorrowingUpdateSerializer(serializers.ModelSerializer):
 
@@ -38,11 +39,24 @@ class BorrowingUpdateSerializer(serializers.ModelSerializer):
         fields = ("actual_return_date", "book" )
         read_only_fields = ("book",)
 
+    def validate(self, attrs):
+        data = super(BorrowingUpdateSerializer, self).validate(attrs)
+        return_date = (attrs["actual_return_date"])
+
+        if return_date is not None:
+            borrowing = get_object_or_404(Borrowing, pk=self.instance.id)
+            book_return = borrowing.book
+            book_return.inventory += 1
+            book_return.save()
+
+        return data
+
+
 class BorrowingCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         data = super(BorrowingCreateSerializer, self).validate(attrs)
-        borrow_date = (attrs["expected_return_date"]).strftime('%Y-%m-%d')
+
         if datetime.date.today() > attrs["expected_return_date"]:
             raise serializers.ValidationError(
                 "Input, please, correct date"
