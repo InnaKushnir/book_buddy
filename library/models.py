@@ -1,5 +1,8 @@
 from django.db import models
 from django.conf import settings
+from django.core.exceptions import ValidationError
+
+import datetime
 
 class Book(models.Model):
     class CoverChoices(models.TextChoices):
@@ -41,6 +44,29 @@ class Borrowing(models.Model):
     @property
     def book(self):
         return self.book_id
+
+
+
+
+    def clean(self):
+        borrow_date = datetime.date.today()
+        borrow_date = borrow_date.strftime('%Y-%m-%d')
+        if datetime.date.today() > self.expected_return_date:
+            raise ValidationError(
+                "Input, please, correct date"
+            )
+
+    def save(
+        self,
+        force_insert=False,
+        force_update=False,
+        using=None,
+        update_fields=None,
+    ):
+        self.full_clean()
+        return super(Borrowing, self).save(
+            force_insert, force_update, using, update_fields
+        )
 
 class Payment(models.Model):
     class StatusChoices(models.TextChoices):
