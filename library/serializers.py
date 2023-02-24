@@ -16,7 +16,6 @@ class BookSerializer(serializers.ModelSerializer):
 
 
 
-
 class BorrowingSerializer(serializers.ModelSerializer):
 
     class Meta:
@@ -32,12 +31,15 @@ class BorrowingListSerializer(BorrowingSerializer):
         fields = ("id", "borrow_date","expected_return_date","actual_return_date", "book")
         read_only_fields = ("book",)
 
-class BorrowingUpdateSerializer(BorrowingSerializer):
+class BorrowingUpdateSerializer(serializers.ModelSerializer):
+
     class Meta:
         model = Borrowing
-        fields = ("actual_return_date", "book_id", )
+        fields = ("actual_return_date", "book_id" )
+        read_only_fields = ("book_id",)
 
-class BorrowingCreateSerializer(BorrowingSerializer):
+class BorrowingCreateSerializer(serializers.ModelSerializer):
+
     def validate(self, attrs):
         data = super(BorrowingCreateSerializer, self).validate(attrs)
         borrow_date = (attrs["expected_return_date"]).strftime('%Y-%m-%d')
@@ -56,4 +58,4 @@ class BorrowingCreateSerializer(BorrowingSerializer):
 
     class Meta:
         model = Borrowing
-        fields = ("book_id", "borrow_date", "expected_return_date", )
+        fields = ["book_id", "borrow_date", "expected_return_date", ]
