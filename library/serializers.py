@@ -20,23 +20,23 @@ class BorrowingSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Borrowing
-        fields = ("id", "borrow_date", "expected_return_date", "actual_return_date", "book_id")
+        fields = ("id", "borrow_date", "expected_return_date", "actual_return_date", "book")
 
 
 class BorrowingListSerializer(BorrowingSerializer):
-    book= BookSerializer(many=False)
+    book_= BookSerializer(many=False)
 
     class Meta:
         model = Borrowing
-        fields = ("id", "borrow_date","expected_return_date","actual_return_date", "book")
-        read_only_fields = ("book",)
+        fields = ("id", "borrow_date","expected_return_date","actual_return_date", "book_")
+        read_only_fields = ("book_",)
 
 class BorrowingUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Borrowing
-        fields = ("actual_return_date", "book_id" )
-        read_only_fields = ("book_id",)
+        fields = ("actual_return_date", "book" )
+        read_only_fields = ("book",)
 
 class BorrowingCreateSerializer(serializers.ModelSerializer):
 
@@ -47,8 +47,7 @@ class BorrowingCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Input, please, correct date"
             )
-        print(attrs["book_id"])
-        book = attrs["book_id"]
+        book = attrs["book"]
         if book.inventory < 1:
             raise serializers.ValidationError(
                 "This book unavailable"
@@ -58,4 +57,4 @@ class BorrowingCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Borrowing
-        fields = ["book_id", "borrow_date", "expected_return_date", ]
+        fields = ["book", "borrow_date", "expected_return_date", ]

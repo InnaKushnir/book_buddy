@@ -51,7 +51,7 @@ class BorrowingViewSet(
 
         serializer.save(user=self.request.user)
 
-        book_id = self.request.data["book_id"]
+        book_id = self.request.data["book"]
         book = get_object_or_404(Book, pk=book_id)
         book.inventory -= 1
         book.save()
