@@ -34,7 +34,7 @@ class Borrowing(models.Model):
     borrow_date = models.DateField(auto_now_add=True)
     expected_return_date = models.DateField(auto_now=False)
     actual_return_date = models.DateField(auto_now=False, null=True, blank=True)
-    book = models.ForeignKey(
+    book_id = models.ForeignKey(
         Book, on_delete=models.CASCADE, related_name="borrowings"
     )
     user = models.ForeignKey(

@@ -45,6 +45,7 @@ class BorrowingCreateSerializer(BorrowingSerializer):
             raise serializers.ValidationError(
                 "Input, please, correct date"
             )
+        print(attrs["book_id"])
         book = attrs["book_id"]
         if book.inventory < 1:
             raise serializers.ValidationError(
