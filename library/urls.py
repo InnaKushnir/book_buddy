@@ -1,5 +1,5 @@
 from django.urls import path, include
-from library.views import index, BookViewSet, BorrowingViewSet
+from library.views import BookViewSet, BorrowingViewSet
 from rest_framework import routers
 
 router = routers.DefaultRouter()

@@ -36,15 +36,24 @@ class BorrowingUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Borrowing
-        fields = ("actual_return_date", "book" )
+        fields = ("actual_return_date", "book", "is_active" )
         read_only_fields = ("book",)
 
     def validate(self, attrs):
         data = super(BorrowingUpdateSerializer, self).validate(attrs)
+        if attrs["actual_return_date"] < self.instance.borrow_date:
+            raise serializers.ValidationError(
+                "Input, please, correct date"
+            )
         return_date = (attrs["actual_return_date"])
 
         if return_date is not None:
             borrowing = get_object_or_404(Borrowing, pk=self.instance.id)
+
+            borrowing.is_active = False
+            borrowing.save()
+            print(borrowing.is_active)
+
             book_return = borrowing.book
             book_return.inventory += 1
             book_return.save()

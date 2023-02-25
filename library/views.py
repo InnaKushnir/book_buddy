@@ -11,19 +11,21 @@ from . serializers import (
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import mixins, viewsets
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 
 
-
-
-def index(request):
-    return render(request)
 
 class BookViewSet(
     viewsets.ModelViewSet
 ):
     queryset = Book. objects.all()
     serializer_class = BookSerializer
+    permission_classes = (AllowAny,)
+
+    def get_permissions(self):
+        if self.action in ("create", "update", "partial_update", "destroy"):
+            return [IsAdminUser()]
+        return super().get_permissions()
 
 
 class BorrowingViewSet(
@@ -46,11 +48,13 @@ class BorrowingViewSet(
         return Borrowing.objects.filter(user=self.request.user)
 
 
-
     def perform_create(self, serializer, **kwargs):
 
         serializer.save(user=self.request.user)
+        self.change_inventory()
 
+
+    def change_inventory(self):
         book_id = self.request.data["book"]
         book = get_object_or_404(Book, pk=book_id)
         book.inventory -= 1

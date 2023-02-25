@@ -40,11 +40,11 @@ class Borrowing(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE
     )
+    is_active = models.BooleanField(default=True)
 
 
     def clean(self):
-        borrow_date = datetime.date.today()
-        borrow_date = borrow_date.strftime('%Y-%m-%d')
+
         if datetime.date.today() > self.expected_return_date:
             raise ValidationError(
                 "Input, please, correct date"
