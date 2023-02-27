@@ -44,11 +44,7 @@ class Borrowing(models.Model):
 
 
     def clean(self):
-
-        if datetime.date.today() > self.expected_return_date:
-            raise ValidationError(
-                "Input, please, correct date"
-            )
+        pass
 
     def save(
         self,
