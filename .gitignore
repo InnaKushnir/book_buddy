@@ -5,3 +5,4 @@ venv
 Lib
 Scripts/
 db.sqlite3
+.env

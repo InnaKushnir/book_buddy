@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import mixins, viewsets
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
+from . notifications import new_borrowing
 
 
 import datetime
@@ -35,9 +36,7 @@ class BorrowingViewSet(
     permission_classes = (IsAuthenticated, )
 
     def get_serializer_class(self):
-        if self.action == "list" :
-            return BorrowingListSerializer
-        elif self.action == "update":
+        if self.action == "update":
             return BorrowingUpdateSerializer
         elif self.action == "create":
             return BorrowingCreateSerializer
@@ -48,6 +47,7 @@ class BorrowingViewSet(
 
         is_active_ = self.request.query_params.get("is_active")
         user_id = self.request.query_params.get("user_id")
+        overdue = self.request.query_params.get("overdue")
 
         if not self.request.user.is_staff:
             queryset = queryset.filter(user=self.request.user)
@@ -58,6 +58,11 @@ class BorrowingViewSet(
                 queryset = queryset.filter(is_active=False).filter(user_id=user_id)
             else:
                 queryset = queryset.filter(is_active=True).filter(user_id=user_id)
+        if overdue:
+            queryset = queryset.filter(
+                expected_return_date__lte=datetime.date.today()).filter(
+                actual_return_date=None
+            )
 
         return queryset
 
@@ -86,7 +91,15 @@ class BorrowingViewSet(
     def perform_create(self, serializer, **kwargs):
 
         serializer.save(user=self.request.user)
+
+        id = self.request.data["book"]
+        book = get_object_or_404(Book, pk=id)
+        expected_return_date = self.request.data["expected_return_date"]
+
+        new_borrowing(self.request.user.id, id, book, expected_return_date)
+
         self.change_inventory_create()
+
 
 
     def change_inventory_create(self):

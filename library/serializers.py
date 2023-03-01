@@ -20,6 +20,16 @@ class BookSerializer(serializers.ModelSerializer):
 class BorrowingListSerializer(serializers.ModelSerializer):
     book= BookSerializer(many=False)
 
+    def validate(self, attrs):
+        data = super(BorrowingListSerializer, self).validate(attrs)
+
+        if attrs["actual_return_date"] is not None:
+            raise serializers.ValidationError(
+                "The book is returned"
+            )
+
+        return data
+
     class Meta:
         model = Borrowing
         fields = (
@@ -31,6 +41,15 @@ class BorrowingListSerializer(serializers.ModelSerializer):
     )
 
 class BorrowingUpdateSerializer(serializers.ModelSerializer):
+    def validate(self, attrs):
+        data = super(BorrowingUpdateSerializer, self).validate(attrs)
+
+        if attrs["actual_return_date"] is not None:
+            raise serializers.ValidationError(
+                "The book is returned"
+            )
+
+        return data
 
     class Meta:
         model = Borrowing
