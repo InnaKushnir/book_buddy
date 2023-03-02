@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import mixins, viewsets
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
-from . notifications import new_borrowing
+from . notifications import new_borrowing, overdue_borrowings
 
 
 import datetime
@@ -60,7 +60,7 @@ class BorrowingViewSet(
                 queryset = queryset.filter(is_active=True).filter(user_id=user_id)
         if overdue:
             queryset = queryset.filter(
-                expected_return_date__lte=datetime.date.today()).filter(
+                expected_return_date__lt=datetime.date.today()).filter(
                 actual_return_date=None
             )
 
@@ -69,22 +69,24 @@ class BorrowingViewSet(
     def update(self, request, pk=None):
 
         borrowing = Borrowing.objects.get(pk=pk)
-        borrowing.actual_return_date =datetime.date.today()
-        borrowing.is_active = False
-        book = borrowing.book
-        book.inventory += 1
+        if borrowing.actual_return_date is None:
+            borrowing.actual_return_date = datetime.date.today()
+            borrowing.is_active = False
+            book = borrowing.book
+            book.inventory += 1
 
-        serializer = BorrowingUpdateSerializer(
-            borrowing,
-            many=False,
-            partial=True,
-            data= {'actual_return_date': datetime.date.today()}
-        )
+            serializer = BorrowingUpdateSerializer(
+                borrowing,
+                many=False,
+                partial=True,
+                data={'actual_return_date': datetime.date.today()}
+            )
 
-        serializer.is_valid()
-        borrowing.save()
-        book.save()
-
+            serializer.is_valid()
+            borrowing.save()
+            book.save()
+        else:
+            serializer = BorrowingUpdateSerializer(borrowing)
         return Response(serializer.data)
 
 
@@ -97,8 +99,11 @@ class BorrowingViewSet(
         expected_return_date = self.request.data["expected_return_date"]
 
         new_borrowing(self.request.user.id, id, book, expected_return_date)
+        overdue_borrowings()
 
         self.change_inventory_create()
+
+
 
 
 
