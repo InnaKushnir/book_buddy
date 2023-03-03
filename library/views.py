@@ -11,8 +11,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import mixins, viewsets
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
-from . notifications import new_borrowing, overdue_borrowings
-
+from library.notifications import new_borrowing
 
 import datetime
 
@@ -99,12 +98,8 @@ class BorrowingViewSet(
         expected_return_date = self.request.data["expected_return_date"]
 
         new_borrowing(self.request.user.id, id, book, expected_return_date)
-        overdue_borrowings()
 
         self.change_inventory_create()
-
-
-
 
 
     def change_inventory_create(self):
@@ -112,5 +107,3 @@ class BorrowingViewSet(
         book = get_object_or_404(Book, pk=book_id)
         book.inventory -= 1
         book.save()
-
-

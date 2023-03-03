@@ -33,7 +33,6 @@ class BorrowingListSerializer(serializers.ModelSerializer):
 
 class BorrowingUpdateSerializer(serializers.ModelSerializer):
 
-
     class Meta:
         model = Borrowing
         fields = ("id", "actual_return_date", "book",)

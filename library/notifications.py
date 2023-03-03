@@ -1,7 +1,7 @@
-from aiogram import Dispatcher
 import telebot
 import os
-import requests
+from django.db import models
+from django.conf import settings
 
 
 API_KEY = os.environ.get("API_KEY")
@@ -16,10 +16,9 @@ def new_borrowing(user_id, book_id, title, expected_return_date):
                                 f" expected_return_date - {expected_return_date}",
                         parse_mode="html")
 
-def overdue_borrowings():
-    res = requests.get("http://127.0.0.1:8000/api/library/borrowings/?overdue=True")
-    response = res.json()
-    print(response)
-
-if __name__ == '__main__':
-    overdue_borrowings()
+def over_(id, book_id, title, expected_return_date):
+    bot.send_message(
+        417193906, f"Overdue borrowing: id -{id}, \n"
+                                f"book_id {book_id} ,{title},\n"
+                                f"expected_return_date - {expected_return_date}"
+    )
