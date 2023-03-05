@@ -5,7 +5,7 @@ import stripe
 
 stripe.api_key = "sk_test_51MdHRcCpjsnilJsOsmnyh2hIlV9Bac2c6qRcwbvs1YciV36XIgP4zqYMxaYBjLleBMXdYHaEKteet0WomHt6VTJ000fpDbvITT"
 
-def checkout_session(request, money):
+def checkout_session(borrowing, money):
 
     checkout_session = stripe.checkout.Session.create(
             line_items=[
