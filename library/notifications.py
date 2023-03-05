@@ -22,3 +22,6 @@ def over_(id, book_id, title, expected_return_date):
                                 f"book_id {book_id} ,{title},\n"
                                 f"expected_return_date - {expected_return_date}"
     )
+
+def not_overdue():
+    bot.send_message(417193906, "No borrowings overdue today!")

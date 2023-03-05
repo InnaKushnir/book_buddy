@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from library.models import Book, Borrowing
+from library.models import Book, Borrowing, Payment
 from django.shortcuts import get_object_or_404
 
 import datetime
@@ -44,6 +44,7 @@ class BorrowingCreateSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         data = super(BorrowingCreateSerializer, self).validate(attrs)
 
+
         if datetime.date.today() > attrs["expected_return_date"]:
             raise serializers.ValidationError(
                 "Input, please, correct date"
@@ -53,9 +54,22 @@ class BorrowingCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "This book unavailable"
             )
+        user = attrs["user"]
+        if user.borrowing_set.filter(actual_return_date=None):
+            raise serializers.ValidationError(
+            "Please pay back your previous loans"
+        )
+
         return data
 
 
     class Meta:
         model = Borrowing
-        fields = ["book", "borrow_date", "expected_return_date", ]
+        fields = ["user", "book", "borrow_date", "expected_return_date", ]
+
+
+class PaymentListSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Payment
+        fields = ("borrowing_id", "status", "type")

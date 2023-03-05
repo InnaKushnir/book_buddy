@@ -1,12 +1,14 @@
 from django.shortcuts import render, get_object_or_404
 from django.contrib.auth import get_user_model
-from library.models import Book, Borrowing
+from library.models import Book, Borrowing, Payment
 from . serializers import (
     BookSerializer,
     BorrowingListSerializer,
     BorrowingUpdateSerializer,
-    BorrowingCreateSerializer
+    BorrowingCreateSerializer,
+    PaymentListSerializer,
 )
+from . stripe import checkout_session
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import mixins, viewsets
@@ -14,6 +16,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from library.notifications import new_borrowing
 
 import datetime
+from django.db import transaction
 
 class BookViewSet(
     viewsets.ModelViewSet
@@ -31,7 +34,7 @@ class BookViewSet(
 class BorrowingViewSet(
     viewsets.ModelViewSet
 ):
-    queryset = Borrowing. objects.all()
+    queryset = Borrowing.objects.all().select_related("book")
     permission_classes = (IsAuthenticated, )
 
     def get_serializer_class(self):
@@ -42,7 +45,7 @@ class BorrowingViewSet(
         return BorrowingListSerializer
 
     def get_queryset(self):
-        queryset = Borrowing.objects.all()
+        queryset = self.queryset.select_related("book")
 
         is_active_ = self.request.query_params.get("is_active")
         user_id = self.request.query_params.get("user_id")
@@ -65,9 +68,11 @@ class BorrowingViewSet(
 
         return queryset
 
+    @transaction.atomic
     def update(self, request, pk=None):
 
         borrowing = Borrowing.objects.get(pk=pk)
+
         if borrowing.actual_return_date is None:
             borrowing.actual_return_date = datetime.date.today()
             borrowing.is_active = False
@@ -84,8 +89,11 @@ class BorrowingViewSet(
             serializer.is_valid()
             borrowing.save()
             book.save()
+            money = self.pay_money()
+            checkout_session(borrowing, money)
         else:
             serializer = BorrowingUpdateSerializer(borrowing)
+
         return Response(serializer.data)
 
 
@@ -102,8 +110,43 @@ class BorrowingViewSet(
         self.change_inventory_create()
 
 
+
     def change_inventory_create(self):
         book_id = self.request.data["book"]
         book = get_object_or_404(Book, pk=book_id)
         book.inventory -= 1
         book.save()
+
+
+    def pay_money(self):
+        borrowing = self.get_object()
+        book = borrowing.book
+        actual_return_date = datetime.date.today()
+        number_of_days = (borrowing.expected_return_date - borrowing.borrow_date).days
+        if borrowing.expected_return_date < actual_return_date:
+            money = (number_of_days + (actual_return_date - borrowing.expected_return_date).days * 2) * book.daily_fee
+        else:
+            money = (borrowing.actual_return_date - borrowing.borrow_date).days * book.daily_fee
+
+        return money
+
+
+
+
+
+
+
+
+class PaymentViewSet(viewsets.ModelViewSet):
+    queryset = Payment.objects.all().select_related("borrowing_id")
+    serializer_class = PaymentListSerializer
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        queryset = self.queryset.select_related("borrowing_id")
+
+        if not self.request.user.is_staff:
+            queryset = queryset.filter(user=self.request.user)
+
+
+
