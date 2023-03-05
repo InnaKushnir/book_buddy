@@ -1,29 +1,26 @@
 import os
-
+from django.conf import settings
 import stripe
 
 
-stripe.api_key = "sk_test_51MdHRcCpjsnilJsOsmnyh2hIlV9Bac2c6qRcwbvs1YciV36XIgP4zqYMxaYBjLleBMXdYHaEKteet0WomHt6VTJ000fpDbvITT"
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
-def checkout_session(borrowing, money):
 
-    checkout_session = stripe.checkout.Session.create(
-            line_items=[
-                {
-                    # Provide the exact Price ID (for example, pr_1234) of the product you want to sell
-                    "price_data": {
-                        "currency": "usd",
-                        "unit_amount": int(1 * 100),
-                        "product_data": borrowing.book.title
-                    },
-                    'quantity': 1,
-                },
-            ],
-            mode='payment',
-            success_url="http://127.0.0.1:8000/library/borrowings/",
-            cancel_url="http://127.0.0.1:8000/library/borrowings/",
-        )
-    session_id = checkout_session.id
-    session_url = checkout_session.url
+def checkout_session(product_id, price_id):
+    # Create a new session in Stripe
+    session = stripe.checkout.Session.create(
+        payment_method_types=["card"],
+        line_items=[
+            {
+                "price": price_id,
+                "product": product_id,
+                "quantity": 1,
+            }
+        ],
+        mode="payment",
+        success_url="https://example.com/success",
+        cancel_url="https://example.com/cancel",
+    )
 
-    return redirect(checkout_session.url, code=303)
+    # Return the session ID
+    return session.id

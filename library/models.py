@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 
 import datetime
 
+
 class Book(models.Model):
     class CoverChoices(models.TextChoices):
         HARD = "HARD"
@@ -15,13 +16,10 @@ class Book(models.Model):
     inventory = models.PositiveIntegerField()
     daily_fee = models.DecimalField(max_digits=6, decimal_places=3)
 
-
     @staticmethod
     def validate(inventory: int, error_to_raise):
         if inventory < 0:
-            raise error_to_raise(
-                "Input positive numeric "
-            )
+            raise error_to_raise("Input positive numeric ")
 
     def clean(self):
         Book.validate(self.inventory, ValidationError)
@@ -34,14 +32,9 @@ class Borrowing(models.Model):
     borrow_date = models.DateField(auto_now_add=True)
     expected_return_date = models.DateField(auto_now=False)
     actual_return_date = models.DateField(auto_now=False, null=True, blank=True)
-    book = models.ForeignKey(
-        Book, on_delete=models.CASCADE, related_name="borrowings"
-    )
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE
-    )
+    book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name="borrowings")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     is_active = models.BooleanField(default=True)
-
 
     def clean(self):
         pass
@@ -57,6 +50,7 @@ class Borrowing(models.Model):
         return super(Borrowing, self).save(
             force_insert, force_update, using, update_fields
         )
+
 
 class Payment(models.Model):
     class StatusChoices(models.TextChoices):

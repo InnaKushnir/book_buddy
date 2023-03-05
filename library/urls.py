@@ -7,8 +7,6 @@ router.register("books", BookViewSet)
 router.register("borrowings", BorrowingViewSet)
 router.register("payments", PaymentViewSet)
 
-urlpatterns = [
-    path("", include(router.urls))
-]
+urlpatterns = [path("", include(router.urls))]
 
 app_name = "library"
