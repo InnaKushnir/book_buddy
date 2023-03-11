@@ -1,9 +1,26 @@
+import os
+import requests
+import json
+import stripe
+import datetime
+
+from django.urls import reverse
 from django.shortcuts import render, get_object_or_404
 from flask import Flask, redirect
 from django.contrib.auth import get_user_model
 from django.http import JsonResponse, HttpResponse
-import requests
-import json
+from rest_framework import status, viewsets
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
+from rest_framework.renderers import TemplateHTMLRenderer
+from rest_framework.mixins import RetrieveModelMixin, ListModelMixin
+from django.db import transaction
+from django.conf import settings
+from django.http import HttpRequest
+from rest_framework.decorators import action
+from rest_framework.viewsets import GenericViewSet
+
+from library.notifications import new_borrowing
 from library.models import Book, Borrowing, Payment
 from .serializers import (
     BookSerializer,
@@ -12,20 +29,8 @@ from .serializers import (
     BorrowingCreateSerializer,
     PaymentSerializer,
 )
-from rest_framework import status, generics, viewsets, mixins
-from rest_framework.views import APIView
-from library.stripe import checkout_session
-from rest_framework.response import Response
-from rest_framework.decorators import api_view
-from rest_framework import mixins, viewsets
-from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
-from library.notifications import new_borrowing
+from library.stripe import order_success
 
-import datetime
-from django.db import transaction
-import stripe
-from django.conf import settings
-import os
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -41,10 +46,12 @@ class BookViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
 
-
-def create_session(amount, name):
+def create_session(request, amount, name):
     # Convert the amount from dollars to cents
     amount_cents = int(amount * 100)
+    url = reverse("library:payment-success")
+    success_url = (request.build_absolute_uri(url)[:-1] + "?session_id={CHECKOUT_SESSION_ID}")
+    cancel_url = request.build_absolute_uri(reverse("library:payment-cancel"))
 
     # Create a new session in Stripe
     session = stripe.checkout.Session.create(
@@ -62,10 +69,9 @@ def create_session(amount, name):
             }
         ],
         mode="payment",
-        success_url="http://127.0.0.1:8000/api/library/payments/",
-        cancel_url="http://127.0.0.1:8000/api/library/borrowings/",
-    )
-    # Return the session ID
+        success_url=success_url,
+        cancel_url=cancel_url)
+
     return session
 
 
@@ -95,9 +101,11 @@ class BorrowingViewSet(viewsets.ModelViewSet):
             and self.request.user.is_staff
         ):
             if str(is_active_) == "False":
-                queryset = queryset.filter(is_active=False).filter(user_id=user_id)
+                queryset = queryset.filter(
+                    is_active=False).filter(user_id=user_id)
             else:
-                queryset = queryset.filter(is_active=True).filter(user_id=user_id)
+                queryset = queryset.filter(
+                    is_active=True).filter(user_id=user_id)
         if overdue:
             queryset = queryset.filter(
                 expected_return_date__lt=datetime.date.today()
@@ -126,23 +134,31 @@ class BorrowingViewSet(viewsets.ModelViewSet):
             borrowing.save()
             book.save()
             money = self.pay_money()
-            session= create_session(money, book.title)
+            session = create_session(request, money, book.title)
 
-            request.session['session_id'] = session.id
-            request.session['session_url'] = session.url
+            request.session["session_id"] = session.id
+            request.session["session_url"] = session.url
             SESSION_URL = session.url
 
+            payment = Payment.objects.create(
+                money_to_pay=money,
+                borrowing=borrowing,
+                status="PAID",
+                type="PAYMENT",
+                session_id=session.id,
+                session_url=session.url,
+            )
+            payment.save()
 
             instance = self.get_object()
-            request.session['borrowing_pk'] = instance.pk
-
+            request.session["borrowing_pk"] = instance.pk
+            request.session["payment_pk"] = payment.pk
 
             response = redirect(SESSION_URL)
 
-            print(session.id, session.url, borrowing.pk)
-            print((response.get_data(), response.status_code, response.content_type))
 
-            return HttpResponse(response.get_data(), status=response.status_code, content_type=response.content_type)
+            return HttpResponse(response.get_data(),
+                                content_type=response.content_type)
         else:
             serializer = BorrowingUpdateSerializer(borrowing)
         return Response(serializer.data)
@@ -168,75 +184,63 @@ class BorrowingViewSet(viewsets.ModelViewSet):
         borrowing = self.get_object()
         book = borrowing.book
         actual_return_date = datetime.date.today()
-        number_of_days = (borrowing.expected_return_date - borrowing.borrow_date).days
+        number_of_days = (
+                borrowing.expected_return_date - borrowing.borrow_date).days
         if borrowing.expected_return_date < actual_return_date:
             money = (
                 number_of_days
-                + (actual_return_date - borrowing.expected_return_date).days * settings.FINE_MULTIPLIER
+                + (actual_return_date - borrowing.expected_return_date).days
+                * settings.FINE_MULTIPLIER
             ) * book.daily_fee
         else:
-            money = 5 * book.daily_fee
+            money = 2 * book.daily_fee
 
         return money
 
 
 class PaymentViewSet(viewsets.ModelViewSet):
-    queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
     permission_classes = (IsAuthenticated,)
+    queryset = Payment.objects.all().select_related("borrowing")
 
     def get_queryset(self):
-        queryset = self.queryset
+        queryset = Payment.objects.all().select_related("borrowing")
+        user = self.request.user
 
         if not self.request.user.is_staff:
-            queryset = queryset.filter(user=self.request.user)
-            borrowing_id = self.request.query_params.get("borrowing_id")
-            if borrowing_id is not None:
-                queryset = queryset.filter(borrowing_id=borrowing_id)
-            print(borrowing_id)
+            queryset = queryset.filter(
+                borrowing__user=user).select_related("borrowing")
 
         return queryset
-    def create(self, request, *args, **kwargs):
 
-        session_id = request.session.get('session_id')
-        session_url = request.session.get('session_url')
-        borrowing_pk = request.session.get('borrowing_pk')
 
-        print(session_id, session_url, borrowing_pk)
-        print(request.session.items())
 
-        # Retrieve the Stripe session object using the session ID
-        session = stripe.checkout.Session.retrieve(session_id)
+    @action(
+        detail=False,
+        methods=["GET"],
+        url_path="success",
+        permission_classes=[IsAuthenticated],
+    )
+    def success(self, request) -> Response:
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+        session_id = request.GET.get("session_id")
+        payment = Payment.objects.get(session_id=session_id)
+        payment.status = "PAID"
+        payment.save()
 
-        session.payment_status = "paid"
+        return Response(data=f"Your payment is successful", status=status.HTTP_200_OK)
 
-        borrowing = get_object_or_404(Borrowing, pk=borrowing_pk)
+    @action(
+        detail=False,
+        methods=["GET"],
+        url_path="cancel",
+        permission_classes=[IsAuthenticated],
+    )
+    def cancel(self, request) -> Response:
+        return Response(
+            data="Try to pay later within 24 hours session is available",
+            status=status.HTTP_402_PAYMENT_REQUIRED,
+        )
 
-        if session.payment_status == 'paid':
-            # Payment was successful, create a Payment object in your database
-            payment = Payment.objects.create(
-                money_to_pay=3.0 ,# session.amount_total,
-                borrowing=borrowing,
-                status="PAID",
-                type="PAYMENT",
-
-                session_id=session_id,
-                session_url=session_url,
-            )
-
-            # Return a success response
-            print("success")
-            payment.save()
-            print(payment)
-
-            return Response({'status': 'success'})
-
-        else:
-            # Payment was not successful, return an error response
-            print("error")
-            return Response({'status': 'error'})
-
-def payment_success(request):
-    return render(request, "payment_success.html")
 
 

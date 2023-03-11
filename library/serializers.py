@@ -52,9 +52,6 @@ class BorrowingCreateSerializer(serializers.ModelSerializer):
         if book.inventory < 1:
             raise serializers.ValidationError("This book unavailable")
 
-        user = attrs["user"]
-        if user.borrowing_set.filter(actual_return_date=None):
-            raise serializers.ValidationError("Please pay back your previous loans")
 
         return data
 
@@ -71,5 +68,12 @@ class BorrowingCreateSerializer(serializers.ModelSerializer):
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
-        fields = ("id", "borrowing", "status", "type", "session_url",
-                  "session_id", "money_to_pay")
+        fields = (
+            "id",
+            "borrowing",
+            "status",
+            "type",
+            "session_url",
+            "session_id",
+            "money_to_pay",
+        )
