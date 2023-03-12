@@ -204,7 +204,7 @@ class BorrowingViewSet(viewsets.ModelViewSet):
                 name="user",
                 type={"type": "int"},
                 description="Permissions only for admin, add parameter 'is_active'"
-                            ", (ex ?user=1&is_active=True  return all current borrowings of user with id=1,"
+                            ", (ex. ?user=1&is_active=True  return all current borrowings of user with id=1,"
                             "?user=2is_active=False   return all returned borrowings of user id=2)",
                 required=False,
 
@@ -213,7 +213,7 @@ class BorrowingViewSet(viewsets.ModelViewSet):
                 name="is_active",
                 type={"type": "Boolean"},
                 description="Permissions only for admin, add parameter 'user'"
-                            ", (ex ?user=1&is_active=True  return all current borrowings of user with id=1,"
+                            ", (ex. ?user=1&is_active=True  return all current borrowings of user with id=1,"
                             "?user=2is_active=False   return all returned borrowings of user id=2)",
                 required=False,
 
@@ -221,7 +221,7 @@ class BorrowingViewSet(viewsets.ModelViewSet):
             OpenApiParameter(
                 name="overdue",
                 type={"type": "string"},
-                description="(ex ?overdue   return all overdue borrowings for current user, "
+                description="(ex. ?overdue   return all overdue borrowings for current user, "
                             "or all overdue borrowings, if current user is admin)",
                 required=False,
 
