@@ -19,6 +19,7 @@ from django.conf import settings
 from django.http import HttpRequest
 from rest_framework.decorators import action
 from rest_framework.viewsets import GenericViewSet
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from library.notifications import new_borrowing
 from library.models import Book, Borrowing, Payment
@@ -90,7 +91,7 @@ class BorrowingViewSet(viewsets.ModelViewSet):
         queryset = self.queryset.select_related("book")
 
         is_active_ = self.request.query_params.get("is_active")
-        user_id = self.request.query_params.get("user_id")
+        user_id = self.request.query_params.get("user")
         overdue = self.request.query_params.get("overdue")
 
         if not self.request.user.is_staff:
@@ -100,19 +101,19 @@ class BorrowingViewSet(viewsets.ModelViewSet):
             and (user_id is not None)
             and self.request.user.is_staff
         ):
-            if str(is_active_) == "False":
+            if str(is_active_).lower()=="false":
                 queryset = queryset.filter(
-                    is_active=False).filter(user_id=user_id)
-            else:
+                    is_active=False).filter(user__id=user_id)
+            elif str(is_active_).lower()=="true":
                 queryset = queryset.filter(
-                    is_active=True).filter(user_id=user_id)
+                    is_active=True).filter(user__id=user_id)
         if overdue:
             queryset = queryset.filter(
                 expected_return_date__lt=datetime.date.today()
             ).filter(actual_return_date=None)
 
         return queryset
-
+    """ Create Payment session, change Borrowing object, create Payment object """
     @transaction.atomic
     def update(self, request, pk=None):
         borrowing = Borrowing.objects.get(pk=pk)
@@ -193,9 +194,43 @@ class BorrowingViewSet(viewsets.ModelViewSet):
                 * settings.FINE_MULTIPLIER
             ) * book.daily_fee
         else:
-            money = 2 * book.daily_fee
+            money = number_of_days * book.daily_fee
 
         return money
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="user",
+                type={"type": "int"},
+                description="Permissions only for admin, add parameter 'is_active'"
+                            ", (ex ?user=1&is_active=True  return all current borrowings of user with id=1,"
+                            "?user=2is_active=False   return all returned borrowings of user id=2)",
+                required=False,
+
+            ),
+            OpenApiParameter(
+                name="is_active",
+                type={"type": "Boolean"},
+                description="Permissions only for admin, add parameter 'user'"
+                            ", (ex ?user=1&is_active=True  return all current borrowings of user with id=1,"
+                            "?user=2is_active=False   return all returned borrowings of user id=2)",
+                required=False,
+
+            ),
+            OpenApiParameter(
+                name="overdue",
+                type={"type": "string"},
+                description="(ex ?overdue   return all overdue borrowings for current user, "
+                            "or all overdue borrowings, if current user is admin)",
+                required=False,
+
+            ),
+        ],
+    )
+
+    def list(self, request, *args, **kwargs):
+        return super(BorrowingViewSet, self).list(request, *args, **kwargs)
 
 
 class PaymentViewSet(viewsets.ModelViewSet):
@@ -241,6 +276,5 @@ class PaymentViewSet(viewsets.ModelViewSet):
             data="Try to pay later within 24 hours session is available",
             status=status.HTTP_402_PAYMENT_REQUIRED,
         )
-
 
 
