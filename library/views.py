@@ -96,21 +96,20 @@ class BorrowingViewSet(viewsets.ModelViewSet):
 
         if not self.request.user.is_staff:
             queryset = queryset.filter(user=self.request.user)
-        if (
-            (is_active_ is not None)
-            and (user_id is not None)
-            and self.request.user.is_staff
-        ):
-            if str(is_active_).lower()=="false":
+        if is_active_ is not None:
+            if is_active_.lower()=="false":
                 queryset = queryset.filter(
-                    is_active=False).filter(user__id=user_id)
-            elif str(is_active_).lower()=="true":
+                    is_active=False)
+            elif is_active_.lower()=="true":
                 queryset = queryset.filter(
-                    is_active=True).filter(user__id=user_id)
-        if overdue:
-            queryset = queryset.filter(
+                    is_active=True)
+        if overdue is not None:
+            if overdue.lower()=="false":
+                queryset = queryset.filter(actual_return_date__isnull=False)
+            if overdue.lower()=="true":
+                queryset = queryset.filter(
                 expected_return_date__lt=datetime.date.today()
-            ).filter(actual_return_date=None)
+                ).filter(actual_return_date=None)
 
         return queryset
     """ Create Payment session, change Borrowing object, create Payment object """
