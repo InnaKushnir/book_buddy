@@ -181,6 +181,7 @@ class BorrowingViewSet(viewsets.ModelViewSet):
         book.inventory -= 1
         book.save()
 
+    """Calculate money to pay for borrowing"""
     def pay_money(self):
         borrowing = self.get_object()
         book = borrowing.book
@@ -249,7 +250,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         return queryset
 
 
-
+    """Endpoint, if payment success"""
     @action(
         detail=False,
         methods=["GET"],
@@ -265,6 +266,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
         return Response(data=f"Your payment is successful", status=status.HTTP_200_OK)
 
+    """Endpoint, if payment cancel"""
     @action(
         detail=False,
         methods=["GET"],
@@ -276,5 +278,3 @@ class PaymentViewSet(viewsets.ModelViewSet):
             data="Try to pay later within 24 hours session is available",
             status=status.HTTP_402_PAYMENT_REQUIRED,
         )
-
-
