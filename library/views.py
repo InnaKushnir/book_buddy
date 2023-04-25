@@ -91,18 +91,21 @@ class BorrowingViewSet(viewsets.ModelViewSet):
         queryset = self.queryset.select_related("book")
 
         is_active_ = self.request.query_params.get("is_active")
-        user_id = self.request.query_params.get("user")
+        user_id = self.request.query_params.get("user_id")
         overdue = self.request.query_params.get("overdue")
 
         if not self.request.user.is_staff:
             queryset = queryset.filter(user=self.request.user)
-        if is_active_ is not None:
-            if is_active_.lower()=="false":
-                queryset = queryset.filter(
-                    is_active=False)
-            elif is_active_.lower()=="true":
-                queryset = queryset.filter(
-                    is_active=True)
+        if (
+                (is_active_ is not None)
+                and (user_id is not None)
+                and self.request.user.is_staff
+        ):
+            if is_active_.lower() == "false":
+                queryset = queryset.filter(is_active=False).filter(user_id=user_id)
+            elif is_active_.lower() == "true":
+                queryset = queryset.filter(is_active=True).filter(user_id=user_id)
+
         if overdue is not None:
             if overdue.lower()=="false":
                 queryset = queryset.filter(actual_return_date__isnull=False)
@@ -186,7 +189,7 @@ class BorrowingViewSet(viewsets.ModelViewSet):
         book = borrowing.book
         actual_return_date = datetime.date.today()
         number_of_days = (
-                borrowing.expected_return_date - borrowing.borrow_date).days
+                borrowing.actual_return_date - borrowing.borrow_date).days
         if borrowing.expected_return_date < actual_return_date:
             money = (
                 number_of_days
