@@ -3,7 +3,6 @@ import requests
 import json
 import stripe
 import datetime
-
 from django.urls import reverse
 from django.shortcuts import render, get_object_or_404
 from flask import Flask, redirect
@@ -20,7 +19,6 @@ from django.http import HttpRequest
 from rest_framework.decorators import action
 from rest_framework.viewsets import GenericViewSet
 from drf_spectacular.utils import extend_schema, OpenApiParameter
-
 from library.notifications import new_borrowing
 from library.models import Book, Borrowing, Payment
 from .serializers import (
@@ -48,13 +46,15 @@ class BookViewSet(viewsets.ModelViewSet):
 
 
 def create_session(request, amount, name):
-    # Convert the amount from dollars to cents
+    """Convert the amount from dollars to cents"""
     amount_cents = int(amount * 100)
     url = reverse("library:payment-success")
-    success_url = (request.build_absolute_uri(url)[:-1] + "?session_id={CHECKOUT_SESSION_ID}")
+    success_url = (
+        request.build_absolute_uri(url)[:-1] + "?session_id={CHECKOUT_SESSION_ID}"
+    )
     cancel_url = request.build_absolute_uri(reverse("library:payment-cancel"))
 
-    # Create a new session in Stripe
+    """ Create a new session in Stripe """
     session = stripe.checkout.Session.create(
         payment_method_types=["card"],
         line_items=[
@@ -71,7 +71,8 @@ def create_session(request, amount, name):
         ],
         mode="payment",
         success_url=success_url,
-        cancel_url=cancel_url)
+        cancel_url=cancel_url,
+    )
 
     return session
 
@@ -97,9 +98,9 @@ class BorrowingViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_staff:
             queryset = queryset.filter(user=self.request.user)
         if (
-                (is_active_ is not None)
-                and (user_id is not None)
-                and self.request.user.is_staff
+            (is_active_ is not None)
+            and (user_id is not None)
+            and self.request.user.is_staff
         ):
             if is_active_.lower() == "false":
                 queryset = queryset.filter(is_active=False).filter(user_id=user_id)
@@ -107,15 +108,17 @@ class BorrowingViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(is_active=True).filter(user_id=user_id)
 
         if overdue is not None:
-            if overdue.lower()=="false":
+            if overdue.lower() == "false":
                 queryset = queryset.filter(actual_return_date__isnull=False)
-            if overdue.lower()=="true":
+            if overdue.lower() == "true":
                 queryset = queryset.filter(
-                expected_return_date__lt=datetime.date.today()
+                    expected_return_date__lt=datetime.date.today()
                 ).filter(actual_return_date=None)
 
         return queryset
+
     """ Create Payment session, change Borrowing object, create Payment object """
+
     @transaction.atomic
     def update(self, request, pk=None):
         borrowing = Borrowing.objects.get(pk=pk)
@@ -159,21 +162,20 @@ class BorrowingViewSet(viewsets.ModelViewSet):
 
             response = redirect(SESSION_URL)
 
-
-            return HttpResponse(response.get_data(),
-                                content_type=response.content_type)
+            return HttpResponse(response.get_data(), content_type=response.content_type)
         else:
             serializer = BorrowingUpdateSerializer(borrowing)
         return Response(serializer.data)
 
     def perform_create(self, serializer, **kwargs):
         serializer.save(user=self.request.user)
-
+        borrowing_id = serializer.instance.id
         id = self.request.data["book"]
         book = get_object_or_404(Book, pk=id)
         expected_return_date = self.request.data["expected_return_date"]
-
-        new_borrowing(self.request.user.id, id, book, expected_return_date)
+        new_borrowing(
+            borrowing_id, self.request.user.id, id, book, expected_return_date
+        )
 
         self.change_inventory_create()
 
@@ -184,16 +186,16 @@ class BorrowingViewSet(viewsets.ModelViewSet):
         book.save()
 
     """Calculate money to pay for borrowing"""
+
     def pay_money(self):
         borrowing = self.get_object()
         book = borrowing.book
         actual_return_date = datetime.date.today()
-        number_of_days = (
-                borrowing.actual_return_date - borrowing.borrow_date).days
+        number_of_days = (borrowing.actual_return_date - borrowing.borrow_date).days
         if borrowing.expected_return_date < actual_return_date:
             money = (
-                number_of_days
-                + (actual_return_date - borrowing.expected_return_date).days
+                (borrowing.expected_return_date - borrowing.borrow_date).days
+                + (borrowing.actual_return_date - borrowing.expected_return_date).days
                 * settings.FINE_MULTIPLIER
             ) * book.daily_fee
         else:
@@ -207,31 +209,27 @@ class BorrowingViewSet(viewsets.ModelViewSet):
                 name="user",
                 type={"type": "int"},
                 description="Permissions only for admin, add parameter 'is_active'"
-                            ", (ex. ?user=1&is_active=True  return all current borrowings of user with id=1,"
-                            "?user=2is_active=False   return all returned borrowings of user id=2)",
+                ", (ex. ?user=1&is_active=True  return all current borrowings of user with id=1,"
+                "?user=2is_active=False   return all returned borrowings of user id=2)",
                 required=False,
-
             ),
             OpenApiParameter(
                 name="is_active",
                 type={"type": "Boolean"},
                 description="Permissions only for admin, add parameter 'user'"
-                            ", (ex. ?user=1&is_active=True  return all current borrowings of user with id=1,"
-                            "?user=2is_active=False   return all returned borrowings of user id=2)",
+                ", (ex. ?user=1&is_active=True  return all current borrowings of user with id=1,"
+                "?user=2is_active=False   return all returned borrowings of user id=2)",
                 required=False,
-
             ),
             OpenApiParameter(
                 name="overdue",
                 type={"type": "string"},
                 description="(ex. ?overdue   return all overdue borrowings for current user, "
-                            "or all overdue borrowings, if current user is admin)",
+                "or all overdue borrowings, if current user is admin)",
                 required=False,
-
             ),
         ],
     )
-
     def list(self, request, *args, **kwargs):
         return super(BorrowingViewSet, self).list(request, *args, **kwargs)
 
@@ -242,17 +240,16 @@ class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.all().select_related("borrowing")
 
     def get_queryset(self):
-        queryset = Payment.objects.all().select_related("borrowing")
+        queryset = self.queryset.select_related("borrowing")
         user = self.request.user
 
         if not self.request.user.is_staff:
-            queryset = queryset.filter(
-                borrowing__user=user).select_related("borrowing")
+            queryset = queryset.filter(borrowing__user=user).select_related("borrowing")
 
         return queryset
 
-
     """Endpoint, if payment success"""
+
     @action(
         detail=False,
         methods=["GET"],
@@ -269,6 +266,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         return Response(data=f"Your payment is successful", status=status.HTTP_200_OK)
 
     """Endpoint, if payment cancel"""
+
     @action(
         detail=False,
         methods=["GET"],

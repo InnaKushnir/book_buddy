@@ -24,11 +24,12 @@ class BorrowingListSerializer(serializers.ModelSerializer):
         model = Borrowing
         fields = (
             "id",
+            "user",
             "borrow_date",
             "expected_return_date",
             "actual_return_date",
             "book",
-            "is_active"
+            "is_active",
         )
 
 
@@ -54,9 +55,7 @@ class BorrowingCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("This book unavailable")
         user = attrs["user"]
         if user.borrowing_set.filter(actual_return_date=None):
-            raise serializers.ValidationError(
-                "Please pay back your previous loans"
-            )
+            raise serializers.ValidationError("Please pay back your previous loans")
 
         return data
 

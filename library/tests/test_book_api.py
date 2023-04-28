@@ -2,39 +2,54 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
-from library.models import Book, Borrowing
+from unittest import mock
+from django.test import RequestFactory
+from library.models import Book, Borrowing, Payment
+from library.views import BorrowingViewSet
 from library.serializers import BookSerializer, BorrowingListSerializer
 from django.contrib.auth import get_user_model
+from datetime import date
 import datetime
+from decimal import Decimal
+import json
+import stripe
+import os
 
 
+stripe.api_key = os.getenv("STRIPE_TEST_SECRET")
 BORROWING_URL = reverse("library:borrowing-list")
 BOOK_URL = reverse("library:book-list")
+PAYMENT_URL = reverse("library:payment-success")
+
 
 def detail_url(borrowing_id: int):
     return reverse("library:borrowing-detail", args=[borrowing_id])
+
+
 def sample_book(**kwargs):
     defaults = {
         "author": "Jerome K. Jerome",
         "title": "Three men in a boat",
-        "cover" : "SOFT",
+        "cover": "SOFT",
         "daily_fee": 0.15,
-        "inventory": 20
+        "inventory": 20,
     }
     defaults.update(kwargs)
     return Book.objects.create(**defaults)
 
+
 def sample_borrowing(**kwargs):
     defaults = {
-        "borrow_date": "2023-04-24",
+        "borrow_date": datetime.date.today(),
         "expected_return_date": "2023-04-30",
         "actual_return_date": None,
         "is_active": True,
         "book": sample_book(),
-        "user": self.user
+        "user": self.user,
     }
     defaults.update(kwargs)
     return Borrowing.objects.create(**defaults)
+
 
 class UnauthenticatedBookAPITests(TestCase):
     def SetUp(self):
@@ -57,20 +72,22 @@ class AuthenticateBorrowingTest(TestCase):
     def setUp(self) -> None:
         self.client = APIClient()
         self.user = get_user_model().objects.create_user(
-            email="12345@test.com",
-            password="12345test"
+            email="12345@test.com", password="12345test"
         )
         self.client.force_authenticate(self.user)
 
         self.defaults = {
-            "borrow_date": "2023-04-17",
+            "borrow_date": datetime.date.today(),
             "expected_return_date": "2023-04-28",
             "actual_return_date": None,
             "is_active": True,
             "book": sample_book(),
-            "user": self.user
+            "user": self.user,
         }
-        borrowing = Borrowing.objects.create(**self.defaults)
+
+    def tearDown(self):
+        del self.user
+        del self.defaults
 
     def test_list_borrowing(self):
         res = self.client.get(BORROWING_URL)
@@ -78,6 +95,42 @@ class AuthenticateBorrowingTest(TestCase):
         serializer = BorrowingListSerializer(borrowings, many=True)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
+
+    def test_create_borrowing_and_inventory_reduce(self):
+        book = Book.objects.create(
+            author="Jerome K. Jerome",
+            title="Three men in a boat",
+            cover="SOFT",
+            daily_fee=0.15,
+            inventory=20,
+        )
+
+        payload = {
+            "borrow_date": datetime.date.today(),
+            "expected_return_date": "2023-04-28",
+            "actual_return_date": "",
+            "is_active": True,
+            "book": book.id,
+            "user": self.user.id,
+        }
+        res = self.client.post(BORROWING_URL, payload)
+        borrowing = Borrowing.objects.last()
+        borrowing.refresh_from_db()
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        for key in payload:
+            if key not in ["actual_return_date", "book", "user"]:
+                self.assertEqual(str(payload[key]), str(getattr(borrowing, key)))
+            elif key == "actual_return_date":
+                self.assertEqual("None", str(getattr(borrowing, key)))
+            elif key == "book":
+                self.assertEqual(borrowing.book.title, book.title)
+                self.assertEqual(borrowing.book.author, book.author)
+                self.assertEqual(float(borrowing.book.daily_fee), book.daily_fee)
+                self.assertEqual(borrowing.book.cover, book.cover)
+                self.assertEqual(borrowing.book.inventory, book.inventory - 1)
+            elif key == "user":
+                self.assertEqual(borrowing.user.email, self.user.email)
+                self.assertEqual(borrowing.user.password, self.user.password)
 
     def test_filter_borrowings_by_overdue(self):
         borrowing1 = Borrowing.objects.create(**self.defaults)
@@ -92,7 +145,7 @@ class AuthenticateBorrowingTest(TestCase):
 
         serializer1 = BorrowingListSerializer(borrowing1)
         serializer2 = BorrowingListSerializer(borrowing2)
-        serializer3= BorrowingListSerializer(borrowing3)
+        serializer3 = BorrowingListSerializer(borrowing3)
 
         self.assertIn(serializer1.data, res.data)
         self.assertIn(serializer2.data, res.data)
@@ -113,42 +166,37 @@ class AuthenticateBorrowingTest(TestCase):
             "title": "Three men in a boat",
             "cover": "SOFT",
             "daily_fee": 0.15,
-            "inventory": 20
+            "inventory": 20,
         }
         res = self.client.post(BOOK_URL, payload)
         self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_book_inventory_change_correctly(self):
-        borrowing = Borrowing.objects.create(**self.defaults)
-
 
 class AdminBorrowingTest(TestCase):
-
     def setUp(self) -> None:
         self.client = APIClient()
         self.user = get_user_model().objects.create_user(
-            email="12345@test.com",
-            password="12345test",
-            is_staff=True
+            email="12345@test.com", password="12345test", is_staff=True
         )
         self.client.force_authenticate(self.user)
 
         self.defaults = {
-            "borrow_date": "2023-04-17",
+            "borrow_date": datetime.date.today(),
             "expected_return_date": "2023-04-28",
             "actual_return_date": None,
             "is_active": True,
             "book": sample_book(),
-            "user": self.user
+            "user": self.user,
         }
         borrowing = Borrowing.objects.create(**self.defaults)
+
     def test_create_book(self):
         payload = {
             "author": "Jerome K. Jerome",
             "title": "Three men in a boat",
             "cover": "SOFT",
             "daily_fee": 0.24,
-            "inventory": 20
+            "inventory": 20,
         }
         res = self.client.post(BOOK_URL, payload)
         book = Book.objects.get(id=res.data["id"])
@@ -158,7 +206,6 @@ class AdminBorrowingTest(TestCase):
                 self.assertEqual(float(payload[key]), float(getattr(book, key)))
             else:
                 self.assertEqual(payload[key], getattr(book, key))
-
 
     def test_filter_overdue(self):
         self.user_ = get_user_model().objects.create_user(
@@ -186,3 +233,105 @@ class AdminBorrowingTest(TestCase):
         self.assertIn(serializer1.data, res.data)
         self.assertIn(serializer2.data, res.data)
         self.assertNotIn(serializer3.data, res.data)
+
+
+class PaymentTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = get_user_model().objects.create_user(
+            email="123@test.com",
+            password="123test",
+        )
+        self.client.force_authenticate(self.user)
+
+        self.book = sample_book()
+        self.borrowing = Borrowing.objects.create(
+            borrow_date=datetime.date.today(),
+            expected_return_date="2023-05-03",
+            actual_return_date=None,
+            is_active=True,
+            book=self.book,
+            user=self.user,
+        )
+
+    def test_stripe_session_and_payment_create(self):
+        session_create_mock = mock.MagicMock()
+        stripe.checkout.Session.create = session_create_mock
+
+        self.factory = RequestFactory()
+        request = self.factory.get("/")
+        amount_cents = int(5 * 100)
+        url = reverse("library:payment-success")
+        success_url = (
+            request.build_absolute_uri(url)[:-1] + "?session_id={CHECKOUT_SESSION_ID}"
+        )
+        cancel_url = request.build_absolute_uri(reverse("library:payment-cancel"))
+        self.session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            line_items=[
+                {
+                    "price_data": {
+                        "currency": "usd",
+                        "product_data": {
+                            "name": self.book.title,
+                        },
+                        "unit_amount": amount_cents,
+                    },
+                    "quantity": 1,
+                }
+            ],
+            mode="payment",
+            success_url=success_url,
+            cancel_url=cancel_url,
+        )
+
+        self.payment = Payment.objects.create(
+            status=Payment.StatusChoices.PENDING,
+            type=Payment.TypeChoices.PAYMENT,
+            borrowing=self.borrowing,
+            session_url="test_url",
+            session_id="test_id",
+            money_to_pay=Decimal("5.00"),
+        )
+
+        session_create_mock.assert_called_with(
+            payment_method_types=["card"],
+            line_items=[
+                {
+                    "price_data": {
+                        "currency": "usd",
+                        "product_data": {
+                            "name": self.book.title,
+                        },
+                        "unit_amount": amount_cents,
+                    },
+                    "quantity": 1,
+                }
+            ],
+            mode="payment",
+            success_url=success_url,
+            cancel_url=cancel_url,
+        )
+
+
+    def test_pay_money(self):
+        self.borrowing.borrow_date = "2023-03-10"
+        self.borrowing.expected_return_date = "2023-03-25"
+
+        print(self.borrowing.book.title)
+        url = reverse("library:payment-success")
+        payload = {
+            "borrowing": self.borrowing,
+            "status": "PAIDING",
+            "type": "PAYMENT",
+            "session_id": "test_id",
+            "session_url": "test_url",
+            "money_to_pay": 12.45
+        }
+
+        res = self.client.get(url, payload)
+        payment = Payment.objects.get(id=1)
+        print(payment)
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+        self.assertEqual(payment.money_to_pay, Decimal("12.45"))
