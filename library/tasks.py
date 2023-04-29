@@ -1,4 +1,4 @@
-from library.notifications import over_, not_overdue
+from library.notifications import overdue_borrowing, not_overdue
 from library.models import Book, Borrowing
 from celery import shared_task
 import datetime
@@ -11,6 +11,6 @@ def run_sync_with_api() -> list:
     ).filter(actual_return_date=None)
     if overdue:
         for over in overdue:
-            over_(over.id, over.book.id, over.book.title, over.expected_return_date)
+            overdue_borrowing(over.id, over.book.id, over.book.title, over.expected_return_date)
     else:
         not_overdue()
