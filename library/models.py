@@ -51,6 +51,21 @@ class Borrowing(models.Model):
             force_insert, force_update, using, update_fields
         )
 
+    def pay_money(self):
+
+        self.actual_return_date = datetime.date.today()
+        number_of_days = (self.actual_return_date - self.borrow_date).days
+        if self.expected_return_date < self.actual_return_date:
+            money = (
+                (self.expected_return_date - self.borrow_date).days
+                + (self.actual_return_date - self.expected_return_date).days
+                * settings.FINE_MULTIPLIER
+            ) * self.book.daily_fee
+        else:
+            money = number_of_days * self.book.daily_fee
+
+        return money
+
 
 class Payment(models.Model):
     class StatusChoices(models.TextChoices):

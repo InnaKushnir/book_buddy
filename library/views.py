@@ -139,7 +139,7 @@ class BorrowingViewSet(viewsets.ModelViewSet):
             serializer.is_valid()
             borrowing.save()
             book.save()
-            money = self.pay_money()
+            money = borrowing.pay_money()
             session = create_session(request, money, book.title)
 
             request.session["session_id"] = session.id
@@ -186,22 +186,6 @@ class BorrowingViewSet(viewsets.ModelViewSet):
         book.save()
 
     """Calculate money to pay for borrowing"""
-
-    def pay_money(self):
-        borrowing = self.get_object()
-        book = borrowing.book
-        actual_return_date = datetime.date.today()
-        number_of_days = (borrowing.actual_return_date - borrowing.borrow_date).days
-        if borrowing.expected_return_date < actual_return_date:
-            money = (
-                (borrowing.expected_return_date - borrowing.borrow_date).days
-                + (borrowing.actual_return_date - borrowing.expected_return_date).days
-                * settings.FINE_MULTIPLIER
-            ) * book.daily_fee
-        else:
-            money = number_of_days * book.daily_fee
-
-        return money
 
     @extend_schema(
         parameters=[

@@ -11,7 +11,6 @@ from django.contrib.auth import get_user_model
 from datetime import date
 import datetime
 from decimal import Decimal
-import json
 import stripe
 import os
 
@@ -78,7 +77,7 @@ class AuthenticateBorrowingTest(TestCase):
 
         self.defaults = {
             "borrow_date": datetime.date.today(),
-            "expected_return_date": "2023-04-28",
+            "expected_return_date": "2023-05-28",
             "actual_return_date": None,
             "is_active": True,
             "book": sample_book(),
@@ -107,7 +106,7 @@ class AuthenticateBorrowingTest(TestCase):
 
         payload = {
             "borrow_date": datetime.date.today(),
-            "expected_return_date": "2023-04-28",
+            "expected_return_date": "2023-05-28",
             "actual_return_date": "",
             "is_active": True,
             "book": book.id,
@@ -115,7 +114,6 @@ class AuthenticateBorrowingTest(TestCase):
         }
         res = self.client.post(BORROWING_URL, payload)
         borrowing = Borrowing.objects.last()
-        borrowing.refresh_from_db()
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         for key in payload:
             if key not in ["actual_return_date", "book", "user"]:
@@ -134,12 +132,16 @@ class AuthenticateBorrowingTest(TestCase):
 
     def test_filter_borrowings_by_overdue(self):
         borrowing1 = Borrowing.objects.create(**self.defaults)
-        borrowing1.expected_return_date = "2023-04-23"
+        borrowing1.borrow_date = "2023-04-20"
+        borrowing1.expected_return_date = "2023-04-28"
         borrowing1.save()
         borrowing2 = Borrowing.objects.create(**self.defaults)
-        borrowing2.expected_return_date = "2023-04-21"
+        borrowing2.borrow_date = "2023-04-15"
+        borrowing2.expected_return_date = "2023-04-27"
         borrowing2.save()
         borrowing3 = Borrowing.objects.create(**self.defaults)
+        borrowing3.borrow_date = "2023-04-23"
+        borrowing3.save()
 
         res = self.client.get(BORROWING_URL, {"overdue": "True"})
 
@@ -235,7 +237,7 @@ class AdminBorrowingTest(TestCase):
         self.assertNotIn(serializer3.data, res.data)
 
 
-class PaymentTests(TestCase):
+class PaymentTest(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.user = get_user_model().objects.create_user(
@@ -254,7 +256,7 @@ class PaymentTests(TestCase):
             user=self.user,
         )
 
-    def test_stripe_session_and_payment_create(self):
+    def test_stripe_session_create(self):
         session_create_mock = mock.MagicMock()
         stripe.checkout.Session.create = session_create_mock
 
@@ -285,14 +287,6 @@ class PaymentTests(TestCase):
             cancel_url=cancel_url,
         )
 
-        self.payment = Payment.objects.create(
-            status=Payment.StatusChoices.PENDING,
-            type=Payment.TypeChoices.PAYMENT,
-            borrowing=self.borrowing,
-            session_url="test_url",
-            session_id="test_id",
-            money_to_pay=Decimal("5.00"),
-        )
 
         session_create_mock.assert_called_with(
             payment_method_types=["card"],
@@ -313,25 +307,15 @@ class PaymentTests(TestCase):
             cancel_url=cancel_url,
         )
 
-
     def test_pay_money(self):
-        self.borrowing.borrow_date = "2023-03-10"
-        self.borrowing.expected_return_date = "2023-03-25"
+        borrow_date = datetime.datetime.strptime("2023-03-10", "%Y-%m-%d").date()
+        expected_return_date = datetime.datetime.strptime(
+            "2023-03-25", "%Y-%m-%d"
+        ).date()
 
-        print(self.borrowing.book.title)
+        self.borrowing.borrow_date = borrow_date
+        self.borrowing.expected_return_date = expected_return_date
+
         url = reverse("library:payment-success")
-        payload = {
-            "borrowing": self.borrowing,
-            "status": "PAIDING",
-            "type": "PAYMENT",
-            "session_id": "test_id",
-            "session_url": "test_url",
-            "money_to_pay": 12.45
-        }
 
-        res = self.client.get(url, payload)
-        payment = Payment.objects.get(id=1)
-        print(payment)
-        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-
-        self.assertEqual(payment.money_to_pay, Decimal("12.45"))
+        self.assertEqual(self.borrowing.pay_money(), 12.75)
