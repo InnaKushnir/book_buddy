@@ -1,3 +1,8 @@
+import os
+from datetime import date
+import datetime
+from decimal import Decimal
+import stripe
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
@@ -8,18 +13,12 @@ from library.models import Book, Borrowing, Payment
 from library.views import BorrowingViewSet
 from library.serializers import BookSerializer, BorrowingListSerializer
 from django.contrib.auth import get_user_model
-from datetime import date
-import datetime
-from decimal import Decimal
-import stripe
-import os
 
 
 stripe.api_key = os.getenv("STRIPE_TEST_SECRET")
 BORROWING_URL = reverse("library:borrowing-list")
 BOOK_URL = reverse("library:book-list")
 PAYMENT_URL = reverse("library:payment-success")
-
 
 def detail_url(borrowing_id: int):
     return reverse("library:borrowing-detail", args=[borrowing_id])

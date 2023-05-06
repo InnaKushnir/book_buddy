@@ -124,7 +124,7 @@ class BorrowingViewSet(viewsets.ModelViewSet):
         borrowing = Borrowing.objects.get(pk=pk)
 
         if borrowing.actual_return_date is None:
-            borrowing.actual_return_date = datetime.date.today()
+            borrowing = self.return_borrowing()
             borrowing.is_active = False
             book = borrowing.book
             book.inventory += 1
@@ -158,14 +158,23 @@ class BorrowingViewSet(viewsets.ModelViewSet):
 
             instance = self.get_object()
             request.session["borrowing_pk"] = instance.pk
-            request.session["payment_pk"] = payment.pk
 
             response = redirect(SESSION_URL)
-
             return HttpResponse(response.get_data(), content_type=response.content_type)
         else:
             serializer = BorrowingUpdateSerializer(borrowing)
         return Response(serializer.data)
+
+    @action(
+        detail=False,
+        methods=["PUT"],
+        url_path="<int:pk>/return",
+        permission_classes=[IsAuthenticated],
+    )
+    def return_borrowing(self):
+        instance = self.get_object()
+        instance.actual_return_date = datetime.date.today()
+        return instance
 
     def perform_create(self, serializer, **kwargs):
         serializer.save(user=self.request.user)
