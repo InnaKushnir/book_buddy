@@ -54,8 +54,7 @@ class BorrowingCreateSerializer(serializers.ModelSerializer):
         if book.inventory < 1:
             raise serializers.ValidationError("This book unavailable")
         user = attrs["user"]
-        if user.borrowing_set.filter(actual_return_date=None):
-            raise serializers.ValidationError("Please pay back your previous loans")
+        -compose
 
         return data
 

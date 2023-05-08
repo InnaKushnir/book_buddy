@@ -21,6 +21,7 @@ from rest_framework.viewsets import GenericViewSet
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from library.notifications import new_borrowing
 from library.models import Book, Borrowing, Payment
+from pagination import LibraryListPagination
 from .serializers import (
     BookSerializer,
     BorrowingListSerializer,
@@ -37,6 +38,7 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 class BookViewSet(viewsets.ModelViewSet):
     queryset = Book.objects.all()
     serializer_class = BookSerializer
+    pagination_class = LibraryListPagination
     permission_classes = (AllowAny,)
 
     def get_permissions(self):
@@ -79,6 +81,7 @@ def create_session(request, amount, name):
 
 class BorrowingViewSet(viewsets.ModelViewSet):
     queryset = Borrowing.objects.all().select_related("book")
+    pagination_class = LibraryListPagination
     permission_classes = (IsAuthenticated,)
 
     def get_serializer_class(self):
@@ -230,6 +233,7 @@ class BorrowingViewSet(viewsets.ModelViewSet):
 class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = PaymentSerializer
     permission_classes = (IsAuthenticated,)
+    pagination_class = LibraryListPagination
     queryset = Payment.objects.all().select_related("borrowing")
 
     def get_queryset(self):
@@ -267,6 +271,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated],
     )
     def cancel(self, request) -> Response:
+        session_id = request.GET.get("session_id")
+        payment = Payment.objects.get(session_id=session_id)
+        del payment
         return Response(
             data="Try to pay later within 24 hours session is available",
             status=status.HTTP_402_PAYMENT_REQUIRED,

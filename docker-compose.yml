@@ -1,3 +1,4 @@
+
 services:
   web:
     build: .
@@ -14,31 +15,21 @@ services:
       - .env
     depends_on:
       - db
-    links:
-      - db:db
-    networks:
-      - djangonetwork
-
 
   db:
     image: postgres:14-alpine
     volumes:
-      - db_volume:/var/lib/postgresql/data
-
+      - db_pgdata:/var/lib/postgresql/data
     env_file:
       - .env
-#    networks:
-#      - djangonetwork
-#    environment:
-#      - POSTGRES_HOST_AUTH_METHOD=trust
     ports:
       - "5432:5432"
 
   redis:
     image: "redis:alpine"
+    volumes:
+    - redis_data:/var/lib/rabbitmq/
 
-    networks:
-      - djangonetwork
 
   celery:
     build:
@@ -54,8 +45,6 @@ services:
     restart: on-failure
     env_file:
       - .env
-    networks:
-      - djangonetwork
 
   celery-beat:
     build:
@@ -69,18 +58,9 @@ services:
       - redis
       - db
     restart: on-failure
-    environment:
-      - POSTGRES_NAME=library_service
-      - POSTGRES_USER=library_service_user
-      - POSTGRES_PASSWORD=library_service_password
-    networks:
-      - djangonetwork
-
-
-networks:
-  djangonetwork:
-    driver: bridge
+    env_file:
+      - .env
 
 volumes:
-  db_volume:
-    external: true
+  db_pgdata:
+  redis_data:

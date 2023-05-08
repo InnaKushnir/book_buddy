@@ -64,7 +64,7 @@ class Borrowing(models.Model):
         else:
             money = number_of_days * self.book.daily_fee
 
-        return money
+        return money if money >= 0.5 else 0.5
 
 
 class Payment(models.Model):
