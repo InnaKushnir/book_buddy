@@ -272,9 +272,18 @@ class PaymentViewSet(viewsets.ModelViewSet):
     )
     def cancel(self, request) -> Response:
         session_id = request.GET.get("session_id")
-        payment = Payment.objects.get(session_id=session_id)
-        del payment
-        return Response(
-            data="Try to pay later within 24 hours session is available",
-            status=status.HTTP_402_PAYMENT_REQUIRED,
-        )
+        payment = Payment.objects.filter(session_id=session_id).first()
+
+        if payment:
+            payment.status = "PENDING"
+            payment.money_to_pay = 0
+            payment.save()
+            return Response(
+                data="Try to pay later within 24 hours session is available",
+                status=status.HTTP_200_OK,
+            )
+        else:
+            return Response(
+                data="Payment not found",
+                status=status.HTTP_400_BAD_REQUEST,
+            )

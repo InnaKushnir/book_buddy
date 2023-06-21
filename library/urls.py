@@ -12,6 +12,9 @@ router.register("books", BookViewSet)
 router.register("borrowings", BorrowingViewSet)
 router.register("payments", PaymentViewSet)
 
-urlpatterns = router.urls
+urlpatterns = [
+    path("", include(router.urls)),
+    path("order/success", order_success, name="order_success"),
+]
 
 app_name = "library"
