@@ -15,7 +15,7 @@ RESTful API for Library service.
 ##### Python3 must be already installed.
 ```
 git clone https://github.com/InnaKushnir/book_buddy
-cd py-net
+cd library_service
 python -m venv venv
 venv/Scripts/activate
 pip install -r requirements.txt
