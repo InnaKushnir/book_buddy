@@ -15,33 +15,22 @@ RESTful API for Library service.
 ##### Python3 must be already installed.
 ```
 git clone https://github.com/InnaKushnir/book_buddy
-cd library_service
+cd book_buddy
 python -m venv venv
 venv/Scripts/activate
 pip install -r requirements.txt
 ```
-* Copy .env.sample -> .env and populate with all required data
-##### Create .env file with values:
-```
-API_KEY = API_KEY
-SECRET_KEY = SECRET_KEY
-CELERY_BROKER_URL = CELERY_BROKER_URL
-CELERY_RESULT_BACKEND = CELERY_RESULT_BACKEND
-STRIPE_TEST_PUBLIC = STRIPE_TEST_PUBLIC
-STRIPE_TEST_SECRET = STRIPE_TEST_SECRET
-BOT_NUMBER = BOT_NUMBER
-POSTGRES_DB=POSTGRES_DB
-POSTGRES_USER=POSTGRES_USER
-POSTGRES_PASSWORD=POSTGRES_PASSWORD
-POSTGRES_PORT=POSTGRES_PORT
-POSTGRES_HOST=POSTGRES_HOST
+* Copy .env.sample -> .env and populate with all required data.
+
 ```
 #### Run the following necessary commands
 ```
 python manage.py migrate
 ```
 #### Use the following command to load prepared data from fixture:
-`python manage.py loaddata db.json`
+```
+python manage.py loaddata db.json
+```
 
 * Docker is used to run a Redis container that is used as a broker for Celery.
 ```
