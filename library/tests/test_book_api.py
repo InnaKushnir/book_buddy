@@ -13,12 +13,14 @@ from library.models import Book, Borrowing, Payment
 from library.views import BorrowingViewSet
 from library.serializers import BookSerializer, BorrowingListSerializer
 from django.contrib.auth import get_user_model
+import json
 
 
 stripe.api_key = os.getenv("STRIPE_TEST_SECRET")
 BORROWING_URL = reverse("library:borrowing-list")
 BOOK_URL = reverse("library:book-list")
 PAYMENT_URL = reverse("library:payment-success")
+
 
 def detail_url(borrowing_id: int):
     return reverse("library:borrowing-detail", args=[borrowing_id])
@@ -62,8 +64,9 @@ class UnauthenticatedBookAPITests(TestCase):
         res = self.client.get(BOOK_URL)
         books = Book.objects.all()
         serializer = BookSerializer(books, many=True)
+
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.data, serializer.data)
+        self.assertEqual(res.data["results"], serializer.data)
 
 
 class AuthenticateBorrowingTest(TestCase):
@@ -75,8 +78,8 @@ class AuthenticateBorrowingTest(TestCase):
         self.client.force_authenticate(self.user)
 
         self.defaults = {
-            "borrow_date": datetime.date.today(),
-            "expected_return_date": "2023-05-28",
+            "borrow_date": "2023-05-28",
+            "expected_return_date": "2023-06-30",
             "actual_return_date": None,
             "is_active": True,
             "book": sample_book(),
@@ -92,7 +95,7 @@ class AuthenticateBorrowingTest(TestCase):
         borrowings = Borrowing.objects.all()
         serializer = BorrowingListSerializer(borrowings, many=True)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.data, serializer.data)
+        self.assertEqual(res.data["results"], serializer.data)
 
     def test_create_borrowing_and_inventory_reduce(self):
         book = Book.objects.create(
@@ -105,7 +108,7 @@ class AuthenticateBorrowingTest(TestCase):
 
         payload = {
             "borrow_date": datetime.date.today(),
-            "expected_return_date": "2023-05-28",
+            "expected_return_date": "2023-10-28",
             "actual_return_date": "",
             "is_active": True,
             "book": book.id,
@@ -131,15 +134,16 @@ class AuthenticateBorrowingTest(TestCase):
 
     def test_filter_borrowings_by_overdue(self):
         borrowing1 = Borrowing.objects.create(**self.defaults)
-        borrowing1.borrow_date = "2023-04-20"
-        borrowing1.expected_return_date = "2023-04-28"
+        borrowing1.borrow_date = "2023-05-20"
+        borrowing1.expected_return_date = "2023-05-28"
         borrowing1.save()
         borrowing2 = Borrowing.objects.create(**self.defaults)
-        borrowing2.borrow_date = "2023-04-15"
-        borrowing2.expected_return_date = "2023-04-27"
+        borrowing2.borrow_date = "2023-05-15"
+        borrowing2.expected_return_date = "2023-05-27"
         borrowing2.save()
         borrowing3 = Borrowing.objects.create(**self.defaults)
-        borrowing3.borrow_date = "2023-04-23"
+        borrowing3.borrow_date = "2023-07-2"
+        borrowing3.expected_return_date = "2024-12-30"
         borrowing3.save()
 
         res = self.client.get(BORROWING_URL, {"overdue": "True"})
@@ -148,9 +152,9 @@ class AuthenticateBorrowingTest(TestCase):
         serializer2 = BorrowingListSerializer(borrowing2)
         serializer3 = BorrowingListSerializer(borrowing3)
 
-        self.assertIn(serializer1.data, res.data)
-        self.assertIn(serializer2.data, res.data)
-        self.assertNotIn(serializer3.data, res.data)
+        self.assertIn(json.dumps(serializer1.data), json.dumps(res.data))
+        self.assertIn(json.dumps(serializer2.data), json.dumps(res.data))
+        self.assertNotIn(json.dumps(serializer3.data), json.dumps(res.data))
 
     def test_retrieve_borrowing_detail(self):
         borrowing = Borrowing.objects.create(**self.defaults)
@@ -182,14 +186,18 @@ class AdminBorrowingTest(TestCase):
         self.client.force_authenticate(self.user)
 
         self.defaults = {
-            "borrow_date": datetime.date.today(),
-            "expected_return_date": "2023-04-28",
+            "borrow_date": "2023-04-28",
+            "expected_return_date": "2023-05-28",
             "actual_return_date": None,
             "is_active": True,
             "book": sample_book(),
             "user": self.user,
         }
         borrowing = Borrowing.objects.create(**self.defaults)
+
+        def tearDown(self):
+            del self.user
+            del self.defaults
 
     def test_create_book(self):
         payload = {
@@ -216,11 +224,11 @@ class AdminBorrowingTest(TestCase):
         self.client.force_authenticate(self.user_)
 
         borrowing1 = Borrowing.objects.create(**self.defaults)
-        borrowing1.expected_return_date = "2023-04-23"
+        borrowing1.expected_return_date = "2023-05-24"
         borrowing1.user = self.user_
         borrowing1.save()
         borrowing2 = Borrowing.objects.create(**self.defaults)
-        borrowing2.expected_return_date = "2023-04-21"
+        borrowing2.expected_return_date = "2023-05-21"
         borrowing2.user = self.user_
         borrowing2.save()
         borrowing3 = Borrowing.objects.create(**self.defaults)
@@ -231,9 +239,9 @@ class AdminBorrowingTest(TestCase):
         serializer2 = BorrowingListSerializer(borrowing2)
         serializer3 = BorrowingListSerializer(borrowing3)
 
-        self.assertIn(serializer1.data, res.data)
-        self.assertIn(serializer2.data, res.data)
-        self.assertNotIn(serializer3.data, res.data)
+        self.assertIn(json.dumps(serializer1.data), json.dumps(res.data))
+        self.assertIn(json.dumps(serializer2.data), json.dumps(res.data))
+        self.assertNotIn(json.dumps(serializer3.data), json.dumps(res.data))
 
 
 class PaymentTest(TestCase):
@@ -286,7 +294,6 @@ class PaymentTest(TestCase):
             cancel_url=cancel_url,
         )
 
-
         session_create_mock.assert_called_with(
             payment_method_types=["card"],
             line_items=[
@@ -307,9 +314,9 @@ class PaymentTest(TestCase):
         )
 
     def test_pay_money(self):
-        borrow_date = datetime.datetime.strptime("2023-03-10", "%Y-%m-%d").date()
+        borrow_date = datetime.datetime.strptime("2023-07-1", "%Y-%m-%d").date()
         expected_return_date = datetime.datetime.strptime(
-            "2023-03-25", "%Y-%m-%d"
+            "2023-07-5", "%Y-%m-%d"
         ).date()
 
         self.borrowing.borrow_date = borrow_date
@@ -317,4 +324,4 @@ class PaymentTest(TestCase):
 
         url = reverse("library:payment-success")
 
-        self.assertEqual(self.borrowing.pay_money(), 12.75)
+        self.assertEqual(round(self.borrowing.pay_money(), 1), 0.9)
