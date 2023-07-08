@@ -1,27 +1,22 @@
-import os
-import requests
-import json
 import stripe
 import datetime
-from django.urls import reverse
-from django.shortcuts import render, get_object_or_404
-from flask import Flask, redirect
-from django.contrib.auth import get_user_model
-from django.http import JsonResponse, HttpResponse
-from rest_framework import status, viewsets
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
-from rest_framework.renderers import TemplateHTMLRenderer
-from rest_framework.mixins import RetrieveModelMixin, ListModelMixin
-from django.db import transaction
+
+import stripe
 from django.conf import settings
-from django.http import HttpRequest
-from rest_framework.decorators import action
-from rest_framework.viewsets import GenericViewSet
+from django.db import transaction
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from drf_spectacular.utils import extend_schema, OpenApiParameter
-from library.notifications import new_borrowing
+from flask import redirect
 from library.models import Book, Borrowing, Payment
+from library.notifications import new_borrowing
 from pagination import LibraryListPagination
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
+from rest_framework.response import Response
+
 from .serializers import (
     BookSerializer,
     BorrowingListSerializer,
@@ -29,8 +24,6 @@ from .serializers import (
     BorrowingCreateSerializer,
     PaymentSerializer,
 )
-from library.stripe import order_success
-
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -52,7 +45,7 @@ def create_session(request, amount, name):
     amount_cents = int(amount * 100)
     url = reverse("library:payment-success")
     success_url = (
-        request.build_absolute_uri(url)[:-1] + "?session_id={CHECKOUT_SESSION_ID}"
+            request.build_absolute_uri(url)[:-1] + "?session_id={CHECKOUT_SESSION_ID}"
     )
     cancel_url = request.build_absolute_uri(reverse("library:payment-cancel"))
 
@@ -101,9 +94,9 @@ class BorrowingViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_staff:
             queryset = queryset.filter(user=self.request.user)
         if (
-            (is_active_ is not None)
-            and (user_id is not None)
-            and self.request.user.is_staff
+                (is_active_ is not None)
+                and (user_id is not None)
+                and self.request.user.is_staff
         ):
             if is_active_.lower() == "false":
                 queryset = queryset.filter(is_active=False).filter(user_id=user_id)
@@ -205,23 +198,23 @@ class BorrowingViewSet(viewsets.ModelViewSet):
                 name="user",
                 type={"type": "int"},
                 description="Permissions only for admin, add parameter 'is_active'"
-                ", (ex. ?user=1&is_active=True  return all current borrowings of user with id=1,"
-                "?user=2is_active=False   return all returned borrowings of user id=2)",
+                            ", (ex. ?user=1&is_active=True  return all current borrowings of user with id=1,"
+                            "?user=2is_active=False   return all returned borrowings of user id=2)",
                 required=False,
             ),
             OpenApiParameter(
                 name="is_active",
                 type={"type": "Boolean"},
                 description="Permissions only for admin, add parameter 'user'"
-                ", (ex. ?user=1&is_active=True  return all current borrowings of user with id=1,"
-                "?user=2is_active=False   return all returned borrowings of user id=2)",
+                            ", (ex. ?user=1&is_active=True  return all current borrowings of user with id=1,"
+                            "?user=2is_active=False   return all returned borrowings of user id=2)",
                 required=False,
             ),
             OpenApiParameter(
                 name="overdue",
                 type={"type": "string"},
                 description="(ex. ?overdue   return all overdue borrowings for current user, "
-                "or all overdue borrowings, if current user is admin)",
+                            "or all overdue borrowings, if current user is admin)",
                 required=False,
             ),
         ],

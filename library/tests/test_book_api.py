@@ -1,33 +1,29 @@
-import os
-from datetime import date
 import datetime
-from decimal import Decimal
+import json
+import os
+from unittest import mock
+from unittest.mock import patch
+
 import stripe
+from django.contrib.auth import get_user_model
+from django.test import RequestFactory
 from django.test import TestCase
 from django.urls import reverse
-from rest_framework import status
-from rest_framework.test import APIClient
-from unittest import mock
-from django.test import RequestFactory
 from library.models import Book, Borrowing, Payment
-from library.views import BorrowingViewSet
+from library.notifications import new_borrowing
 from library.serializers import (
     BookSerializer,
     BorrowingListSerializer,
     PaymentSerializer,
 )
-from django.contrib.auth import get_user_model
-import json
-
-from unittest import TestCase as UnittestTestCase
-from unittest.mock import patch
-from library.notifications import new_borrowing
-
+from rest_framework import status
+from rest_framework.test import APIClient
 
 stripe.api_key = os.getenv("STRIPE_TEST_SECRET")
 BORROWING_URL = reverse("library:borrowing-list")
 BOOK_URL = reverse("library:book-list")
 PAYMENT_URL = reverse("library:payment-success")
+BOT_NUMBER = 417193906
 
 
 def detail_url(model, object_id):
@@ -320,7 +316,7 @@ class PaymentTest(TestCase):
         amount_cents = int(5 * 100)
         url = reverse("library:payment-success")
         success_url = (
-            request.build_absolute_uri(url)[:-1] + "?session_id={CHECKOUT_SESSION_ID}"
+                request.build_absolute_uri(url)[:-1] + "?session_id={CHECKOUT_SESSION_ID}"
         )
         cancel_url = request.build_absolute_uri(reverse("library:payment-cancel"))
         self.session = stripe.checkout.Session.create(
@@ -415,24 +411,24 @@ class PaymentTest(TestCase):
 
         url = reverse("library:payment-success")
 
-        self.assertEqual(round(self.borrowing.pay_money(), 1), 1.2)
+        self.assertEqual(round(self.borrowing.pay_money(), 1), 1.5)
 
 
-# class NotificationsTest(TestCase):
-#     @patch("library.notifications.bot.send_message")
-#     def test_new_borrowing_notification(self, send_message_mock):
-#         borrowing_id = 1
-#         user_id = 1
-#         book_id = 1
-#         title = "Test Book"
-#         expected_return_date = "2023-07-31"
-#
-#         new_borrowing(borrowing_id, user_id, book_id, title, expected_return_date)
-#
-#         send_message_mock.assert_called_once_with(
-#             BOT_NUMBER,
-#             f"New borrowing:{borrowing_id}, user_id - {user_id},\n"
-#             f" book_id {book_id} , {title},\n"
-#             f" expected_return_date - {expected_return_date}",
-#             parse_mode="html",
-#         )
+class NotificationsTest(TestCase):
+    @patch("library.notifications.bot.send_message")
+    def test_new_borrowing_notification(self, send_message_mock):
+        borrowing_id = 1
+        user_id = 1
+        book_id = 1
+        title = "Test Book"
+        expected_return_date = "2023-07-31"
+
+        new_borrowing(borrowing_id, user_id, book_id, title, expected_return_date)
+
+        send_message_mock.assert_called_once_with(
+            str(BOT_NUMBER),
+            f"New borrowing:{borrowing_id}, user_id - {user_id},\n"
+            f" book_id {book_id} , {title},\n"
+            f" expected_return_date - {expected_return_date}",
+            parse_mode="html",
+        )

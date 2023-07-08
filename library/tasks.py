@@ -1,7 +1,8 @@
-from library.notifications import overdue_borrowing, not_overdue
-from library.models import Book, Borrowing
-from celery import shared_task
 import datetime
+
+from celery import shared_task
+from library.models import Borrowing
+from library.notifications import overdue_borrowing, not_overdue
 
 
 @shared_task

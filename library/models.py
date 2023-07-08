@@ -1,8 +1,8 @@
-from django.db import models
+import datetime
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
-
-import datetime
+from django.db import models
 
 
 class Book(models.Model):
@@ -40,11 +40,11 @@ class Borrowing(models.Model):
         pass
 
     def save(
-        self,
-        force_insert=False,
-        force_update=False,
-        using=None,
-        update_fields=None,
+            self,
+            force_insert=False,
+            force_update=False,
+            using=None,
+            update_fields=None,
     ):
         self.full_clean()
         return super(Borrowing, self).save(
@@ -57,10 +57,10 @@ class Borrowing(models.Model):
         number_of_days = (self.actual_return_date - self.borrow_date).days
         if self.expected_return_date < self.actual_return_date:
             money = (
-                (self.expected_return_date - self.borrow_date).days
-                + (self.actual_return_date - self.expected_return_date).days
-                * settings.FINE_MULTIPLIER
-            ) * self.book.daily_fee
+                            (self.expected_return_date - self.borrow_date).days
+                            + (self.actual_return_date - self.expected_return_date).days
+                            * settings.FINE_MULTIPLIER
+                    ) * self.book.daily_fee
         else:
             money = number_of_days * self.book.daily_fee
 
