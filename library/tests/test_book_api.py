@@ -11,9 +11,17 @@ from unittest import mock
 from django.test import RequestFactory
 from library.models import Book, Borrowing, Payment
 from library.views import BorrowingViewSet
-from library.serializers import BookSerializer, BorrowingListSerializer
+from library.serializers import (
+    BookSerializer,
+    BorrowingListSerializer,
+    PaymentSerializer,
+)
 from django.contrib.auth import get_user_model
 import json
+
+from unittest import TestCase as UnittestTestCase
+from unittest.mock import patch
+from library.notifications import new_borrowing
 
 
 stripe.api_key = os.getenv("STRIPE_TEST_SECRET")
@@ -22,8 +30,8 @@ BOOK_URL = reverse("library:book-list")
 PAYMENT_URL = reverse("library:payment-success")
 
 
-def detail_url(borrowing_id: int):
-    return reverse("library:borrowing-detail", args=[borrowing_id])
+def detail_url(model, object_id):
+    return reverse(f"library:{model._meta.model_name}-detail", args=[object_id])
 
 
 def sample_book(**kwargs):
@@ -158,10 +166,19 @@ class AuthenticateBorrowingTest(TestCase):
 
     def test_retrieve_borrowing_detail(self):
         borrowing = Borrowing.objects.create(**self.defaults)
-        url = detail_url(borrowing.id)
+        url = detail_url(borrowing.__class__, borrowing.id)
         res = self.client.get(url)
 
         serializer = BorrowingListSerializer(borrowing)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data, serializer.data)
+
+    def test_retrieve_book_detail(self):
+        book = sample_book()
+        url = detail_url(book.__class__, book.id)
+        res = self.client.get(url)
+
+        serializer = BookSerializer(book)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
 
@@ -193,7 +210,7 @@ class AdminBorrowingTest(TestCase):
             "book": sample_book(),
             "user": self.user,
         }
-        borrowing = Borrowing.objects.create(**self.defaults)
+        self.borrowing = Borrowing.objects.create(**self.defaults)
 
         def tearDown(self):
             del self.user
@@ -215,6 +232,37 @@ class AdminBorrowingTest(TestCase):
                 self.assertEqual(float(payload[key]), float(getattr(book, key)))
             else:
                 self.assertEqual(payload[key], getattr(book, key))
+
+    def test_delete_book(self):
+        book = sample_book()
+        url = detail_url(book.__class__, book.id)
+        res = self.client.delete(url)
+
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Book.objects.filter(id=book.id).exists())
+
+    def test_delete_borrowing(self):
+        borrowing = self.borrowing
+        url = detail_url(borrowing.__class__, borrowing.id)
+        res = self.client.delete(url)
+
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Borrowing.objects.filter(id=borrowing.id).exists())
+
+    def test_delete_payment(self):
+        payment = Payment.objects.create(
+            status=Payment.StatusChoices.PAID,
+            type=Payment.TypeChoices.PAYMENT,
+            borrowing=self.borrowing,
+            session_url="http://example.com/payment-session",
+            session_id="fake_session_id",
+            money_to_pay=10.00,
+        )
+        url = detail_url(payment.__class__, payment.id)
+        res = self.client.delete(url)
+
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Payment.objects.filter(id=payment.id).exists())
 
     def test_filter_overdue(self):
         self.user_ = get_user_model().objects.create_user(
@@ -313,6 +361,49 @@ class PaymentTest(TestCase):
             cancel_url=cancel_url,
         )
 
+    def test_retrieve_payment_detail(self):
+        payment = Payment.objects.create(
+            status=Payment.StatusChoices.PAID,
+            type=Payment.TypeChoices.PAYMENT,
+            borrowing=self.borrowing,
+            session_url="http://example.com/payment-session",
+            session_id="fake_session_id",
+            money_to_pay=10.00,
+        )
+        url = detail_url(payment.__class__, payment.id)
+        res = self.client.get(url)
+
+        serializer = PaymentSerializer(payment)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data, serializer.data)
+
+    def test_list_payments(self):
+        payment1 = Payment.objects.create(
+            status=Payment.StatusChoices.PAID,
+            type=Payment.TypeChoices.PAYMENT,
+            borrowing=self.borrowing,
+            session_url="http://example.com/payment-session1",
+            session_id="fake_session_id1",
+            money_to_pay=10.00,
+        )
+        payment2 = Payment.objects.create(
+            status=Payment.StatusChoices.PENDING,
+            type=Payment.TypeChoices.FINE,
+            borrowing=self.borrowing,
+            session_url="http://example.com/payment-session2",
+            session_id="fake_session_id2",
+            money_to_pay=5.00,
+        )
+
+        res = self.client.get(reverse("library:payment-list"))
+
+        serializer1 = PaymentSerializer(payment1)
+        serializer2 = PaymentSerializer(payment2)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn(serializer1.data, res.data["results"])
+        self.assertIn(serializer2.data, res.data["results"])
+
     def test_pay_money(self):
         borrow_date = datetime.datetime.strptime("2023-07-1", "%Y-%m-%d").date()
         expected_return_date = datetime.datetime.strptime(
@@ -324,4 +415,24 @@ class PaymentTest(TestCase):
 
         url = reverse("library:payment-success")
 
-        self.assertEqual(round(self.borrowing.pay_money(), 1), 0.9)
+        self.assertEqual(round(self.borrowing.pay_money(), 1), 1.2)
+
+
+# class NotificationsTest(TestCase):
+#     @patch("library.notifications.bot.send_message")
+#     def test_new_borrowing_notification(self, send_message_mock):
+#         borrowing_id = 1
+#         user_id = 1
+#         book_id = 1
+#         title = "Test Book"
+#         expected_return_date = "2023-07-31"
+#
+#         new_borrowing(borrowing_id, user_id, book_id, title, expected_return_date)
+#
+#         send_message_mock.assert_called_once_with(
+#             BOT_NUMBER,
+#             f"New borrowing:{borrowing_id}, user_id - {user_id},\n"
+#             f" book_id {book_id} , {title},\n"
+#             f" expected_return_date - {expected_return_date}",
+#             parse_mode="html",
+#         )

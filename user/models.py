@@ -39,9 +39,19 @@ class UserManager(BaseUserManager):
 
         return self._create_user(email, password, **extra_fields)
 
-
+from django.contrib.auth.validators import UnicodeUsernameValidator
 class User(AbstractUser):
-    username = None
+    username = models.CharField(
+        _("username"),
+        max_length=150,
+        help_text=_(
+            "Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only."
+        ),
+        validators=[UnicodeUsernameValidator()],
+        error_messages={
+            "unique": _("A user with that username already exists."),
+        },
+    )
     email = models.EmailField(_("email address"), unique=True)
 
     USERNAME_FIELD = "email"

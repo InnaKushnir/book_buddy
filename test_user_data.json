@@ -5,7 +5,8 @@
     "fields": {
       "email": "admin@gmail.com",
       "password": "pbkdf2_sha256$320000$nk1DrWcm2fNUmtPjg4bqmW$I3X+pOeE1YQtNK182wiwNaJ1qaz2tHQWu4kvWDS1x8Y=",
-      "is_staff": true
+      "is_staff": true,
+      "username": "admin"
     }
   }
 ]
