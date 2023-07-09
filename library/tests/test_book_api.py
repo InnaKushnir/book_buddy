@@ -1,10 +1,10 @@
 import datetime
 import json
 import os
-from datetime import date
-from datetime import timedelta
 from unittest import mock
 from unittest.mock import patch
+from datetime import date
+from datetime import timedelta
 
 import stripe
 from django.contrib.auth import get_user_model
@@ -13,6 +13,7 @@ from django.test import TestCase
 from django.urls import reverse
 from library.models import Book, Borrowing, Payment
 from library.notifications import new_borrowing, overdue_borrowing
+from library.tasks import run_sync_with_api
 from library.serializers import (
     BookSerializer,
     BorrowingListSerializer,
@@ -465,3 +466,17 @@ class NotificationsTest(TestCase):
             f"book_id {self.borrowing.book.id} ,{self.borrowing.book.title},\n"
             f"expected_return_date - {self.borrowing.expected_return_date}",
         )
+
+    @patch("library.notifications.bot.send_message")
+    def test_not_overdue_borrowings_notification(self, send_message_mock):
+        self.borrowing.expected_return_date = date.today() + timedelta(days=1)
+        overdue_borrowing(
+            self.borrowing.id,
+            self.borrowing.book.id,
+            self.borrowing.book.title,
+            self.borrowing.expected_return_date,
+        )
+
+        run_sync_with_api()
+
+        send_message_mock.assert_not_called()

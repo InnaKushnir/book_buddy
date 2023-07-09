@@ -27,10 +27,6 @@ pip install -r requirements.txt
 ```
 python manage.py migrate
 ```
-#### Use the following command to load prepared data from fixture:
-```
-python manage.py loaddata db.json
-```
 
 * Docker is used to run a Redis container that is used as a broker for Celery.
 ```

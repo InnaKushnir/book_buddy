@@ -88,7 +88,7 @@ WSGI_APPLICATION = "library_service.wsgi.application"
 import sys
 
 if "test" in sys.argv:
-    MIGRATION_MODULES = {'user': 'user.test_migrations'}
+    MIGRATION_MODULES = {"user": "user.test_migrations"}
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
 
@@ -102,7 +102,6 @@ DATABASES = {
         "PORT": os.environ["POSTGRES_PORT"],
     }
 }
-# DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": "db.sqlite3"}}
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
