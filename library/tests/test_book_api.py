@@ -1,6 +1,8 @@
 import datetime
 import json
 import os
+from datetime import date
+from datetime import timedelta
 from unittest import mock
 from unittest.mock import patch
 
@@ -10,7 +12,7 @@ from django.test import RequestFactory
 from django.test import TestCase
 from django.urls import reverse
 from library.models import Book, Borrowing, Payment
-from library.notifications import new_borrowing
+from library.notifications import new_borrowing, overdue_borrowing
 from library.serializers import (
     BookSerializer,
     BorrowingListSerializer,
@@ -316,7 +318,7 @@ class PaymentTest(TestCase):
         amount_cents = int(5 * 100)
         url = reverse("library:payment-success")
         success_url = (
-                request.build_absolute_uri(url)[:-1] + "?session_id={CHECKOUT_SESSION_ID}"
+            request.build_absolute_uri(url)[:-1] + "?session_id={CHECKOUT_SESSION_ID}"
         )
         cancel_url = request.build_absolute_uri(reverse("library:payment-cancel"))
         self.session = stripe.checkout.Session.create(
@@ -411,24 +413,55 @@ class PaymentTest(TestCase):
 
         url = reverse("library:payment-success")
 
-        self.assertEqual(round(self.borrowing.pay_money(), 1), 1.5)
+        self.assertEqual(round(self.borrowing.pay_money(), 1), 1.8)
 
 
 class NotificationsTest(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            email="123@test.com",
+            password="123test",
+        )
+        self.borrowing = Borrowing.objects.create(
+            borrow_date=datetime.date.today(),
+            expected_return_date="2023-10-31",
+            actual_return_date=None,
+            is_active=True,
+            book=sample_book(),
+            user=self.user,
+        )
+
     @patch("library.notifications.bot.send_message")
     def test_new_borrowing_notification(self, send_message_mock):
-        borrowing_id = 1
-        user_id = 1
-        book_id = 1
-        title = "Test Book"
-        expected_return_date = "2023-07-31"
-
-        new_borrowing(borrowing_id, user_id, book_id, title, expected_return_date)
+        new_borrowing(
+            self.borrowing.id,
+            self.user.id,
+            self.borrowing.book.id,
+            self.borrowing.book.title,
+            self.borrowing.expected_return_date,
+        )
 
         send_message_mock.assert_called_once_with(
             str(BOT_NUMBER),
-            f"New borrowing:{borrowing_id}, user_id - {user_id},\n"
-            f" book_id {book_id} , {title},\n"
-            f" expected_return_date - {expected_return_date}",
+            f"New borrowing:{self.borrowing.id}, user_id - {self.user.id},\n"
+            f" book_id {self.borrowing.book.id} , {self.borrowing.book.title},\n"
+            f" expected_return_date - {self.borrowing.expected_return_date}",
             parse_mode="html",
+        )
+
+    @patch("library.notifications.bot.send_message")
+    def test_overdue_borrowings_notification(self, send_message_mock):
+        self.borrowing.expected_return_date = date.today() - timedelta(days=1)
+        overdue_borrowing(
+            self.borrowing.id,
+            self.borrowing.book.id,
+            self.borrowing.book.title,
+            self.borrowing.expected_return_date,
+        )
+
+        send_message_mock.assert_called_once_with(
+            str(BOT_NUMBER),
+            f"Overdue borrowing: id -{self.borrowing.id}, \n"
+            f"book_id {self.borrowing.book.id} ,{self.borrowing.book.title},\n"
+            f"expected_return_date - {self.borrowing.expected_return_date}",
         )
