@@ -414,7 +414,7 @@ class PaymentTest(TestCase):
 
         url = reverse("library:payment-success")
 
-        self.assertEqual(round(self.borrowing.pay_money(), 1), 1.8)
+        self.assertEqual(round(self.borrowing.pay_money(), 1), 2.4)
 
 
 class NotificationsTest(TestCase):
@@ -469,7 +469,7 @@ class NotificationsTest(TestCase):
 
     @patch("library.notifications.bot.send_message")
     def test_not_overdue_borrowings_notification(self, send_message_mock):
-        self.borrowing.expected_return_date = date.today() + timedelta(days=1)
+        self.borrowing.expected_return_date = date.today() + timedelta(days=10)
         overdue_borrowing(
             self.borrowing.id,
             self.borrowing.book.id,

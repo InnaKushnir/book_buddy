@@ -1,9 +1,7 @@
 import os
 
 import telebot
-
-API_KEY = os.environ.get("API_KEY")
-BOT_NUMBER = os.environ.get("BOT_NUMBER")
+from library_service.settings import BOT_NUMBER, API_KEY
 
 bot = telebot.TeleBot(token=API_KEY)
 
