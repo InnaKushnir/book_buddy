@@ -106,6 +106,7 @@ DATABASES = {
 API_KEY = os.environ.get("API_KEY")
 BOT_NUMBER = os.environ.get("BOT_NUMBER")
 
+
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
 

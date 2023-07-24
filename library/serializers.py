@@ -5,11 +5,12 @@ from rest_framework import serializers
 
 
 class BookSerializer(serializers.ModelSerializer):
-    def validate(self, attrs):
-        data = super(BookSerializer, self).validate(attrs)
-        Book.validate(attrs["inventory"], serializers.ValidationError)
-
-        return data
+    def validate_inventory(self, attrs):
+        if attrs < 1:
+            raise serializers.ValidationError(
+                "Inventory should be greater than or equal to 1"
+            )
+        return attrs
 
     class Meta:
         model = Book
@@ -44,19 +45,20 @@ class BorrowingUpdateSerializer(serializers.ModelSerializer):
 
 
 class BorrowingCreateSerializer(serializers.ModelSerializer):
-    def validate(self, attrs):
-        data = super(BorrowingCreateSerializer, self).validate(attrs)
+    def validate_expected_return_date(self, attrs):
+        if datetime.date.today() > attrs:
+            raise serializers.ValidationError("Please, enter a correct date")
+        return attrs
 
-        if datetime.date.today() > attrs["expected_return_date"]:
-            raise serializers.ValidationError("Input, please, correct date")
-        book = attrs["book"]
-        if book.inventory < 1:
-            raise serializers.ValidationError("This book unavailable")
-        user = attrs["user"]
-        if user.borrowing_set.filter(actual_return_date=None):
+    def validate_book(self, attrs):
+        if attrs.inventory < 1:
+            raise serializers.ValidationError("This book is unavailable")
+        return attrs
+
+    def validate_user(self, attrs):
+        if attrs.borrowing_set.filter(actual_return_date=None).exists():
             raise serializers.ValidationError("Please pay back your previous loans")
-
-        return data
+        return attrs
 
     class Meta:
         model = Borrowing

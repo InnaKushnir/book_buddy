@@ -1,4 +1,3 @@
-import stripe
 import datetime
 
 import stripe
@@ -11,7 +10,8 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter
 from flask import redirect
 from library.models import Book, Borrowing, Payment
 from library.notifications import new_borrowing
-from pagination import LibraryListPagination
+from library.pagination import LibraryListPagination
+from library.permissions import IsAdminOrReadOnly
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
@@ -36,7 +36,7 @@ class BookViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ("create", "update", "partial_update", "destroy"):
-            return [IsAdminUser()]
+            return [IsAdminOrReadOnly()]
         return super().get_permissions()
 
 
@@ -45,7 +45,7 @@ def create_session(request, amount, name):
     amount_cents = int(amount * 100)
     url = reverse("library:payment-success")
     success_url = (
-            request.build_absolute_uri(url)[:-1] + "?session_id={CHECKOUT_SESSION_ID}"
+        request.build_absolute_uri(url)[:-1] + "?session_id={CHECKOUT_SESSION_ID}"
     )
     cancel_url = request.build_absolute_uri(reverse("library:payment-cancel"))
 
@@ -77,6 +77,11 @@ class BorrowingViewSet(viewsets.ModelViewSet):
     pagination_class = LibraryListPagination
     permission_classes = (IsAuthenticated,)
 
+    def get_permissions(self):
+        if self.action == "destroy":
+            return [IsAdminOrReadOnly()]
+        return super().get_permissions()
+
     def get_serializer_class(self):
         if self.action == "update":
             return BorrowingUpdateSerializer
@@ -94,9 +99,9 @@ class BorrowingViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_staff:
             queryset = queryset.filter(user=self.request.user)
         if (
-                (is_active_ is not None)
-                and (user_id is not None)
-                and self.request.user.is_staff
+            (is_active_ is not None)
+            and (user_id is not None)
+            and self.request.user.is_staff
         ):
             if is_active_.lower() == "false":
                 queryset = queryset.filter(is_active=False).filter(user_id=user_id)
@@ -198,23 +203,23 @@ class BorrowingViewSet(viewsets.ModelViewSet):
                 name="user",
                 type={"type": "int"},
                 description="Permissions only for admin, add parameter 'is_active'"
-                            ", (ex. ?user=1&is_active=True  return all current borrowings of user with id=1,"
-                            "?user=2is_active=False   return all returned borrowings of user id=2)",
+                ", (ex. ?user=1&is_active=True  return all current borrowings of user with id=1,"
+                "?user=2is_active=False   return all returned borrowings of user id=2)",
                 required=False,
             ),
             OpenApiParameter(
                 name="is_active",
                 type={"type": "Boolean"},
                 description="Permissions only for admin, add parameter 'user'"
-                            ", (ex. ?user=1&is_active=True  return all current borrowings of user with id=1,"
-                            "?user=2is_active=False   return all returned borrowings of user id=2)",
+                ", (ex. ?user=1&is_active=True  return all current borrowings of user with id=1,"
+                "?user=2is_active=False   return all returned borrowings of user id=2)",
                 required=False,
             ),
             OpenApiParameter(
                 name="overdue",
                 type={"type": "string"},
                 description="(ex. ?overdue   return all overdue borrowings for current user, "
-                            "or all overdue borrowings, if current user is admin)",
+                "or all overdue borrowings, if current user is admin)",
                 required=False,
             ),
         ],
@@ -228,6 +233,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
     permission_classes = (IsAuthenticated,)
     pagination_class = LibraryListPagination
     queryset = Payment.objects.all().select_related("borrowing")
+
+    def get_permissions(self):
+        if self.action in ("destroy", "update", "partial_update"):
+            return [IsAdminOrReadOnly()]
+        return super().get_permissions()
 
     def get_queryset(self):
         queryset = self.queryset.select_related("borrowing")
