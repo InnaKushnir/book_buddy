@@ -178,7 +178,6 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
     "ROTATE_REFRESH_TOKENS": False,
-    "AUTH_HEADER_NAME": "HTTP_AUTHORIZE",
 }
 
 STRIPE_PUBLIC_KEY = os.getenv("STRIPE_TEST_PUBLIC")
