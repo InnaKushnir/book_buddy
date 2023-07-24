@@ -22,7 +22,6 @@ pip install -r requirements.txt
 ```
 * Copy .env.sample -> .env and populate with all required data.
 
-```
 #### Run the following necessary commands
 ```
 python manage.py migrate
@@ -45,14 +44,19 @@ celery -A library_service beat -l INFO --scheduler django_celery_beat.schedulers
 ```
 python manage.py runserver
 ```
+#### Test user
+
+* Email: `admin@gmail.com`
+* Password: `12345admin`
+
 * Register on the website using the link.
-```
-    http://127.0.0.1:8000/api/user/register/
-```
+
+`http://127.0.0.1:8000/api/user/register/`
+
 * Get the token using the link. 
-```
-    http://127.0.0.1:8000/api/user/token/
-```
+
+`http://127.0.0.1:8000/api/user/token/`
+
 
 
 ### How to run with Docker:
